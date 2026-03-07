@@ -48,5 +48,9 @@
       ],
       "format": "svg"
     }
+  ],
+  "cSpell.words": [
+    "cuecontext",
+    "cuelang"
   ]
 }
