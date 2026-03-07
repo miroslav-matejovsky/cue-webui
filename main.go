@@ -15,10 +15,28 @@ func main() {
 	ctx := cuecontext.New()
 	rootValue := ctx.CompileString(schemaFile)
 
-	v1 := rootValue.LookupPath(cue.ParsePath("#V1"))
-	v2 := rootValue.LookupPath(cue.ParsePath("#V2"))
-	v3 := rootValue.LookupPath(cue.ParsePath("#V3"))
+	configPath := cue.ParsePath("#Configuration")
+	config := rootValue.LookupPath(configPath)
 
-	fmt.Println("V2 is backwards compatible with V1:", v2.Subsume(v1) == nil)
-	fmt.Println("V3 is backwards compatible with V2:", v3.Subsume(v2) == nil)
+	fmt.Println("=== #Configuration ===")
+	iter, err := config.Fields(cue.Optional(true))
+	if err != nil {
+		fmt.Println("Error iterating fields:", err)
+		return
+	}
+	for iter.Next() {
+		field := iter.Value()
+		label := iter.Selector()
+		typ := field.IncompleteKind().String()
+		doc := ""
+		for _, d := range field.Doc() {
+			doc += d.Text()
+		}
+		fmt.Printf("Field:  %s\n", label)
+		fmt.Printf("Type:   %s\n", typ)
+		if doc != "" {
+			fmt.Printf("Doc:    %s", doc)
+		}
+		fmt.Println("---")
+	}
 }

@@ -1,20 +1,14 @@
-// Release notes:
-// - You can now specify your age and your hobby!
-#V1: {
-	age:   >=0 & <=100
-	hobby: string
-}
+// #Configuration defines the top-level server configuration.
+#Configuration: {
+	// address is the hostname or IP address the server listens on.
+	// Example: "0.0.0.0" to listen on all interfaces, or "127.0.0.1" for localhost only.
+	address: string
 
-// Release notes:
-// - People get to be older than 100, so we relaxed it.
-// - It seems not many people have a hobby, so we made it optional.
-#V2: {
-	age:    >=0 & <=150 // people get older now
-	hobby?: string      // some people don't have a hobby
-}
+	// port is the TCP port number the server binds to.
+	// Must be a valid port in the range 1–65535.
+	port: int
 
-// Release notes:
-// - Actually no one seems to have a hobby nowadays anymore, so we dropped the field.
-#V3: {
-	age: >=0 & <=150
+	// protocol specifies the network protocol used by the server.
+	// Typical values: "http", "https", "tcp", "udp".
+	protocol: string
 }
