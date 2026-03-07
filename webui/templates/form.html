@@ -1,0 +1,121 @@
+{{define "form"}}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{.Title}}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+  <div class="container">
+    <h1>{{.Title}}</h1>
+    <form method="POST" action="/submit">
+      {{range .Sections}}
+      {{template "section" .}}
+      {{end}}
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Submit</button>
+        <button type="reset" class="btn btn-secondary">Reset</button>
+      </div>
+    </form>
+  </div>
+</body>
+
+</html>
+{{end}}
+
+{{define "result"}}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{.Title}} — Results</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+  <div class="container">
+    <h1>Submitted Values</h1>
+    <table class="result-table">
+      <thead>
+        <tr>
+          <th>Field</th>
+          <th>Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Values}}
+        <tr>
+          <td>{{.Key}}</td>
+          <td>{{.Value}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    <div class="form-actions">
+      <a href="/" class="btn btn-primary">Back to Form</a>
+    </div>
+  </div>
+</body>
+
+</html>
+{{end}}
+
+{{define "section"}}
+<fieldset>
+  <legend>{{.Label}}</legend>
+  {{if .Help}}<p class="section-help">{{.Help}}</p>{{end}}
+  <div class="grid columns-{{.Columns}}">
+    {{range .Fields}}
+    {{if not .Hidden}}
+    <div class="field{{if .Colspan}} colspan-{{.Colspan}}{{end}}">
+      {{if eq .Widget "checkbox"}}
+      <label class="checkbox-label">
+        <input type="checkbox" id="{{.Path}}" name="{{.Path}}" value="true" {{if .Readonly}} disabled{{end}}>
+        <span>{{.Label}}</span>
+      </label>
+      {{else}}
+      <label for="{{.Path}}">{{.Label}}</label>
+      {{if eq .Widget "select"}}
+      <select id="{{.Path}}" name="{{.Path}}" {{if .Readonly}} disabled{{end}}>
+        <option value="">— select —</option>
+        {{$f := .}}
+        {{range .Options}}
+        <option value="{{.}}" {{if eq . $f.Default}} selected{{end}}>{{.}}</option>
+        {{end}}
+      </select>
+      {{else if eq .Widget "textarea"}}
+      <textarea id="{{.Path}}" name="{{.Path}}" placeholder="{{.Placeholder}}" {{if .Readonly}}
+        readonly{{end}}>{{.Default}}</textarea>
+      {{else if eq .Widget "radio"}}
+      <div class="radio-group">
+        {{$f := .}}
+        {{range .Options}}
+        <label class="radio-label">
+          <input type="radio" name="{{$f.Path}}" value="{{.}}" {{if eq . $f.Default}} checked{{end}}{{if $f.Readonly}}
+            disabled{{end}}>
+          <span>{{.}}</span>
+        </label>
+        {{end}}
+      </div>
+      {{else}}
+      <input type="{{.InputType}}" id="{{.Path}}" name="{{.Path}}" value="{{.Default}}" placeholder="{{.Placeholder}}"
+        {{if .Min}} min="{{.Min}}" {{end}}{{if .Max}} max="{{.Max}}" {{end}}{{if .Pattern}} pattern="{{.Pattern}}"
+        {{end}}{{if .Readonly}} readonly{{end}}>
+      {{end}}
+      {{end}}
+      {{if .Help}}<small class="help">{{.Help}}</small>{{end}}
+    </div>
+    {{end}}
+    {{end}}
+  </div>
+  {{range .Sections}}
+  {{template "section" .}}
+  {{end}}
+</fieldset>
+{{end}}
