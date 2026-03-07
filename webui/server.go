@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
-	"sort"
-	"strings"
+
+	"github.com/miroslav-matejovsky/cue-webui/storage"
 )
 
 //go:embed templates/form.html
@@ -33,6 +33,12 @@ func ParseFormTemplate() (*template.Template, error) {
 //
 // Non-POST requests to /submit are redirected to /. Any other path returns 404.
 func NewHandler(formData FormData) (http.Handler, error) {
+	return NewHandlerWithStorage(formData, nil)
+}
+
+// NewHandlerWithStorage returns an http.Handler that renders a form hydrated from
+// a Store and persists submitted values back to that Store.
+func NewHandlerWithStorage(formData FormData, store storage.Store) (http.Handler, error) {
 	mux := http.NewServeMux()
 	tmpl, err := ParseFormTemplate()
 	if err != nil {
@@ -44,8 +50,19 @@ func NewHandler(formData FormData) (http.Handler, error) {
 			http.NotFound(w, r)
 			return
 		}
+
+		viewData := formData
+		if store != nil {
+			storedValues, err := store.Load(r.Context())
+			if err != nil {
+				http.Error(w, "Failed to load configuration", http.StatusInternalServerError)
+				return
+			}
+			viewData = applyStoredValues(formData, storedValues)
+		}
+
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if err := tmpl.ExecuteTemplate(w, "form", formData); err != nil {
+		if err := tmpl.ExecuteTemplate(w, "form", viewData); err != nil {
 			http.Error(w, "Template error", http.StatusInternalServerError)
 		}
 	})
@@ -64,14 +81,26 @@ func NewHandler(formData FormData) (http.Handler, error) {
 			http.Error(w, "Bad request", http.StatusBadRequest)
 			return
 		}
-		var values []KeyValue
-		for key, vals := range r.PostForm {
-			values = append(values, KeyValue{Key: key, Value: strings.Join(vals, ", ")})
+
+		existingValues := map[string]string{}
+		if store != nil {
+			storedValues, err := store.Load(r.Context())
+			if err != nil {
+				http.Error(w, "Failed to load configuration", http.StatusInternalServerError)
+				return
+			}
+			existingValues = storedValues
 		}
-		sort.Slice(values, func(i, j int) bool {
-			return values[i].Key < values[j].Key
-		})
-		result := ResultData{Title: formData.Title, Values: values}
+
+		updatedValues := mergeSubmittedValues(formData, existingValues, r.PostForm)
+		if store != nil {
+			if err := store.Save(r.Context(), updatedValues); err != nil {
+				http.Error(w, "Failed to save configuration", http.StatusInternalServerError)
+				return
+			}
+		}
+
+		result := resultDataFromValues(formData.Title, updatedValues)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if err := tmpl.ExecuteTemplate(w, "result", result); err != nil {
 			http.Error(w, "Template error", http.StatusInternalServerError)

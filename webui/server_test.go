@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/miroslav-matejovsky/cue-webui/storage"
 	"github.com/stretchr/testify/require"
 )
 
@@ -51,6 +52,13 @@ func sampleFormData() FormData {
 func mustNewHandler(t *testing.T, fd FormData) http.Handler {
 	t.Helper()
 	h, err := NewHandler(fd)
+	require.NoError(t, err)
+	return h
+}
+
+func mustNewHandlerWithStorage(t *testing.T, fd FormData, store storage.Store) http.Handler {
+	t.Helper()
+	h, err := NewHandlerWithStorage(fd, store)
 	require.NoError(t, err)
 	return h
 }
@@ -156,6 +164,35 @@ func TestNewHandler_FormRenders_CheckboxWidget(t *testing.T) {
 	require.Contains(t, rec.Body.String(), `type="checkbox"`, "response missing checkbox input")
 }
 
+func TestNewHandler_LoadsStoredValues(t *testing.T) {
+	fd := FormData{
+		Title: "Stored Values Test",
+		Sections: []Section{{
+			Name: "server", Label: "Server", Columns: 2,
+			Fields: []Field{
+				{Name: "host", Path: "server.host", Label: "Host", Widget: "input", InputType: "text"},
+				{Name: "protocol", Path: "server.protocol", Label: "Protocol", Widget: "select", Options: []string{"http", "https"}},
+				{Name: "enabled", Path: "server.enabled", Label: "Enabled", Widget: "checkbox"},
+			},
+		}},
+	}
+	store := storage.NewMock(map[string]string{
+		"server.host":     "stored.example",
+		"server.protocol": "https",
+		"server.enabled":  "true",
+	})
+
+	handler := mustNewHandlerWithStorage(t, fd, store)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	require.Contains(t, body, `value="stored.example"`, "response missing stored input value")
+	require.Contains(t, body, `value="https"  selected`, "response missing stored select value")
+	require.Contains(t, body, `name="server.enabled" value="true" checked`, "response missing checked checkbox")
+}
+
 func TestNewHandler_FormRenders_TextareaWidget(t *testing.T) {
 	fd := FormData{
 		Title: "Textarea Test",
@@ -234,6 +271,43 @@ func TestNewHandler_SubmitResultSorted(t *testing.T) {
 	require.NotEqual(t, -1, aIdx, "result page missing 'a_field'")
 	require.NotEqual(t, -1, zIdx, "result page missing 'z_field'")
 	require.Less(t, aIdx, zIdx, "result fields not sorted alphabetically")
+}
+
+func TestNewHandler_SubmitPostSavesToStorage(t *testing.T) {
+	fd := FormData{
+		Title: "Persist Test",
+		Sections: []Section{{
+			Name: "server", Label: "Server", Columns: 2,
+			Fields: []Field{
+				{Name: "host", Path: "server.host", Label: "Host", Widget: "input", InputType: "text"},
+				{Name: "enabled", Path: "server.enabled", Label: "Enabled", Widget: "checkbox"},
+				{Name: "protocol", Path: "server.protocol", Label: "Protocol", Widget: "select", Options: []string{"http", "https"}, Readonly: true},
+			},
+		}},
+	}
+	store := storage.NewMock(map[string]string{
+		"server.enabled":  "true",
+		"server.protocol": "https",
+	})
+	handler := mustNewHandlerWithStorage(t, fd, store)
+
+	form := url.Values{}
+	form.Set("server.host", "api.internal")
+
+	req := httptest.NewRequest(http.MethodPost, "/submit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, map[string]string{
+		"server.enabled":  "false",
+		"server.host":     "api.internal",
+		"server.protocol": "https",
+	}, store.Snapshot())
+	require.Contains(t, rec.Body.String(), "api.internal")
+	require.Contains(t, rec.Body.String(), "false")
+	require.Contains(t, rec.Body.String(), "https")
 }
 
 func TestNewHandler_FormRenders_NestedSections(t *testing.T) {

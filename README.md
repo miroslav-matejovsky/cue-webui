@@ -38,7 +38,8 @@ If you want to embed your own schema in an application, the flow is:
 
 1. Compile the CUE schema with `cuecontext.New().CompileString(...)`.
 2. Convert it to `webui.FormData` with `webui.BuildFormData(...)`.
-3. Serve the generated handler from `webui.NewHandler(...)`.
+3. Optionally provide a storage backend that implements `storage.Store`.
+4. Serve the generated handler from `webui.NewHandler(...)` or `webui.NewHandlerWithStorage(...)`.
 
 ## Schema Example
 
@@ -123,10 +124,14 @@ webui/
   hints.go           # UI hint parsing and CUE constraint extraction
   form.go            # Form/section/field builder from CUE values
   server.go          # HTTP handler (form page, CSS, submit endpoint)
+  values.go          # Stored value hydration and submission merging helpers
   templates/
     form.html        # Go HTML template (form + result views)
   static/
     style.css        # Embedded stylesheet
+storage/
+  storage.go         # Storage interface for loading and saving form values
+  mock.go            # In-memory mock storage implementation
 ```
 
 ## Examples
