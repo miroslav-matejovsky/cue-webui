@@ -11,14 +11,10 @@ func TestParseUIHints_AllDirectives(t *testing.T) {
 	src := `
 // UI_Label: Server Address
 // UI_Help: Hostname or IP
-// UI_Placeholder: e.g. 0.0.0.0
 // UI_Widget: textarea
-// UI_Options: a, b, c
 // UI_Hidden: true
 // UI_Readonly: true
 // UI_Order: 3
-// UI_Min: 1
-// UI_Max: 100
 // UI_Pattern: ^[a-z]+$
 // UI_Columns: 4
 // UI_Colspan: 2
@@ -38,14 +34,8 @@ field: string
 	if h.Help != "Hostname or IP" {
 		t.Errorf("Help = %q, want %q", h.Help, "Hostname or IP")
 	}
-	if h.Placeholder != "e.g. 0.0.0.0" {
-		t.Errorf("Placeholder = %q, want %q", h.Placeholder, "e.g. 0.0.0.0")
-	}
 	if h.Widget != "textarea" {
 		t.Errorf("Widget = %q, want %q", h.Widget, "textarea")
-	}
-	if len(h.Options) != 3 || h.Options[0] != "a" || h.Options[1] != "b" || h.Options[2] != "c" {
-		t.Errorf("Options = %v, want [a b c]", h.Options)
 	}
 	if !h.Hidden {
 		t.Error("Hidden = false, want true")
@@ -55,12 +45,6 @@ field: string
 	}
 	if h.Order != 3 {
 		t.Errorf("Order = %d, want 3", h.Order)
-	}
-	if h.Min != "1" {
-		t.Errorf("Min = %q, want %q", h.Min, "1")
-	}
-	if h.Max != "100" {
-		t.Errorf("Max = %q, want %q", h.Max, "100")
 	}
 	if h.Pattern != "^[a-z]+$" {
 		t.Errorf("Pattern = %q, want %q", h.Pattern, "^[a-z]+$")
@@ -98,9 +82,6 @@ field: string
 	if h.Readonly {
 		t.Error("Readonly = true, want false")
 	}
-	if len(h.Options) != 0 {
-		t.Errorf("Options = %v, want empty", h.Options)
-	}
 }
 
 func TestParseUIHints_PartialDirectives(t *testing.T) {
@@ -131,26 +112,88 @@ field: int
 	}
 }
 
-func TestParseUIHints_OptionsWithSpaces(t *testing.T) {
-	src := `
-// UI_Options: debug , info , warn , error
-field: string
-`
+func TestExtractOptions_Disjunction(t *testing.T) {
+	src := `field: "debug" | "info" | "warn" | "error"`
 	ctx := cuecontext.New()
 	val := ctx.CompileString(src).LookupPath(cue.ParsePath("field"))
 	if val.Err() != nil {
 		t.Fatalf("compile error: %v", val.Err())
 	}
 
-	h := ParseUIHints(val)
+	options := ExtractOptions(val)
 	want := []string{"debug", "info", "warn", "error"}
-	if len(h.Options) != len(want) {
-		t.Fatalf("Options length = %d, want %d", len(h.Options), len(want))
+	if len(options) != len(want) {
+		t.Fatalf("Options length = %d, want %d", len(options), len(want))
 	}
-	for i, got := range h.Options {
+	for i, got := range options {
 		if got != want[i] {
 			t.Errorf("Options[%d] = %q, want %q", i, got, want[i])
 		}
+	}
+}
+
+func TestExtractOptions_NoDisjunction(t *testing.T) {
+	src := `field: string`
+	ctx := cuecontext.New()
+	val := ctx.CompileString(src).LookupPath(cue.ParsePath("field"))
+	if val.Err() != nil {
+		t.Fatalf("compile error: %v", val.Err())
+	}
+
+	options := ExtractOptions(val)
+	if len(options) != 0 {
+		t.Errorf("Options = %v, want empty", options)
+	}
+}
+
+func TestExtractBounds(t *testing.T) {
+	src := `field: int & >=1 & <=65535`
+	ctx := cuecontext.New()
+	val := ctx.CompileString(src).LookupPath(cue.ParsePath("field"))
+	if val.Err() != nil {
+		t.Fatalf("compile error: %v", val.Err())
+	}
+
+	min, max := ExtractBounds(val)
+	if min != "1" {
+		t.Errorf("Min = %q, want %q", min, "1")
+	}
+	if max != "65535" {
+		t.Errorf("Max = %q, want %q", max, "65535")
+	}
+}
+
+func TestExtractBounds_NoBounds(t *testing.T) {
+	src := `field: int`
+	ctx := cuecontext.New()
+	val := ctx.CompileString(src).LookupPath(cue.ParsePath("field"))
+	if val.Err() != nil {
+		t.Fatalf("compile error: %v", val.Err())
+	}
+
+	min, max := ExtractBounds(val)
+	if min != "" {
+		t.Errorf("Min = %q, want empty", min)
+	}
+	if max != "" {
+		t.Errorf("Max = %q, want empty", max)
+	}
+}
+
+func TestExtractBounds_OnlyMin(t *testing.T) {
+	src := `field: int & >=0`
+	ctx := cuecontext.New()
+	val := ctx.CompileString(src).LookupPath(cue.ParsePath("field"))
+	if val.Err() != nil {
+		t.Fatalf("compile error: %v", val.Err())
+	}
+
+	min, max := ExtractBounds(val)
+	if min != "0" {
+		t.Errorf("Min = %q, want %q", min, "0")
+	}
+	if max != "" {
+		t.Errorf("Max = %q, want empty", max)
 	}
 }
 
@@ -206,23 +249,6 @@ field: string
 	h := ParseUIHints(val)
 	if h.Hidden {
 		t.Error("Hidden = true, want false")
-	}
-}
-
-func TestParseUIHints_EmptyOptions(t *testing.T) {
-	src := `
-// UI_Options: ,, ,
-field: string
-`
-	ctx := cuecontext.New()
-	val := ctx.CompileString(src).LookupPath(cue.ParsePath("field"))
-	if val.Err() != nil {
-		t.Fatalf("compile error: %v", val.Err())
-	}
-
-	h := ParseUIHints(val)
-	if len(h.Options) != 0 {
-		t.Errorf("Options = %v, want empty (blank entries filtered)", h.Options)
 	}
 }
 

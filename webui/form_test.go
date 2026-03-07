@@ -65,13 +65,10 @@ func TestParseSection_ScalarFields(t *testing.T) {
 	src := `
 // UI_Label: Server Address
 // UI_Help: Hostname or IP
-// UI_Placeholder: e.g. 0.0.0.0
 address: string
 
 // UI_Help: TCP port number
-// UI_Min: 1
-// UI_Max: 65535
-port: int
+port: int & >=1 & <=65535
 `
 	ctx := cuecontext.New()
 	val := ctx.CompileString(src)
@@ -101,9 +98,6 @@ port: int
 	if addr.Help != "Hostname or IP" {
 		t.Errorf("Field[0].Help = %q, want %q", addr.Help, "Hostname or IP")
 	}
-	if addr.Placeholder != "e.g. 0.0.0.0" {
-		t.Errorf("Field[0].Placeholder = %q, want %q", addr.Placeholder, "e.g. 0.0.0.0")
-	}
 	if addr.InputType != "text" {
 		t.Errorf("Field[0].InputType = %q, want %q", addr.InputType, "text")
 	}
@@ -128,8 +122,7 @@ port: int
 
 func TestParseSection_WidgetInference(t *testing.T) {
 	src := `
-// UI_Options: http, https
-protocol: string
+protocol: "http" | "https"
 
 enabled: bool
 `

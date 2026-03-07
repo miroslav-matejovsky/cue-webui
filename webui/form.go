@@ -11,23 +11,22 @@ import (
 
 // Field represents a single form field.
 type Field struct {
-	Name        string
-	Path        string
-	Type        string
-	InputType   string
-	Label       string
-	Help        string
-	Placeholder string
-	Widget      string
-	Options     []string
-	Hidden      bool
-	Readonly    bool
-	Order       int
-	Min         string
-	Max         string
-	Pattern     string
-	Default     string
-	Colspan     int
+	Name      string
+	Path      string
+	Type      string
+	InputType string
+	Label     string
+	Help      string
+	Widget    string
+	Options   []string
+	Hidden    bool
+	Readonly  bool
+	Order     int
+	Min       string
+	Max       string
+	Pattern   string
+	Default   string
+	Colspan   int
 }
 
 // Section represents a group of fields (a CUE struct).
@@ -130,9 +129,13 @@ func ParseSection(name string, val cue.Value, pathPrefix string, sectionHints UI
 
 		// Scalar field → form input
 		inputType := CueTypeToInputType(fieldVal.IncompleteKind())
+
+		options := ExtractOptions(fieldVal)
+		min, max := ExtractBounds(fieldVal)
+
 		widget := fieldHints.Widget
 		if widget == "" {
-			if len(fieldHints.Options) > 0 {
+			if len(options) > 0 {
 				widget = "select"
 			} else if fieldVal.IncompleteKind() == cue.BoolKind {
 				widget = "checkbox"
@@ -169,23 +172,22 @@ func ParseSection(name string, val cue.Value, pathPrefix string, sectionHints UI
 		}
 
 		section.Fields = append(section.Fields, Field{
-			Name:        fieldName,
-			Path:        fieldPath,
-			Type:        fieldVal.IncompleteKind().String(),
-			InputType:   inputType,
-			Label:       label,
-			Help:        fieldHints.Help,
-			Placeholder: fieldHints.Placeholder,
-			Widget:      widget,
-			Options:     fieldHints.Options,
-			Hidden:      fieldHints.Hidden,
-			Readonly:    fieldHints.Readonly,
-			Order:       fieldHints.Order,
-			Min:         fieldHints.Min,
-			Max:         fieldHints.Max,
-			Pattern:     fieldHints.Pattern,
-			Default:     defVal,
-			Colspan:     fieldHints.Colspan,
+			Name:      fieldName,
+			Path:      fieldPath,
+			Type:      fieldVal.IncompleteKind().String(),
+			InputType: inputType,
+			Label:     label,
+			Help:      fieldHints.Help,
+			Widget:    widget,
+			Options:   options,
+			Hidden:    fieldHints.Hidden,
+			Readonly:  fieldHints.Readonly,
+			Order:     fieldHints.Order,
+			Min:       min,
+			Max:       max,
+			Pattern:   fieldHints.Pattern,
+			Default:   defVal,
+			Colspan:   fieldHints.Colspan,
 		})
 	}
 

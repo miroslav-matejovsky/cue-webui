@@ -90,8 +90,7 @@
         {{end}}
       </select>
       {{else if eq .Widget "textarea"}}
-      <textarea id="{{.Path}}" name="{{.Path}}" placeholder="{{.Placeholder}}" {{if .Readonly}}
-        readonly{{end}}>{{.Default}}</textarea>
+      <textarea id="{{.Path}}" name="{{.Path}}" {{if .Readonly}} readonly{{end}}>{{.Default}}</textarea>
       {{else if eq .Widget "radio"}}
       <div class="radio-group">
         {{$f := .}}
@@ -104,9 +103,9 @@
         {{end}}
       </div>
       {{else}}
-      <input type="{{.InputType}}" id="{{.Path}}" name="{{.Path}}" value="{{.Default}}" placeholder="{{.Placeholder}}"
-        {{if .Min}} min="{{.Min}}" {{end}}{{if .Max}} max="{{.Max}}" {{end}}{{if .Pattern}} pattern="{{.Pattern}}"
-        {{end}}{{if .Readonly}} readonly{{end}}>
+      <input type="{{.InputType}}" id="{{.Path}}" name="{{.Path}}" value="{{.Default}}" {{if .Min}} min="{{.Min}}"
+        {{end}}{{if .Max}} max="{{.Max}}" {{end}}{{if .Pattern}} pattern="{{.Pattern}}" {{end}}{{if .Readonly}}
+        readonly{{end}}>
       {{end}}
       {{end}}
       {{if .Help}}<small class="help">{{.Help}}</small>{{end}}
