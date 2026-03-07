@@ -44,33 +44,33 @@ Open [http://localhost:8080](http://localhost:8080) to see the generated form.
 
 Native CUE features used for form behavior:
 
-| CUE Constraint | Form Effect |
-|---|---|
-| `"a" \| "b" \| "c"` | `<select>` dropdown with options |
-| `>=1 & <=65535` | `min` and `max` on `<input type="number">` |
-| `=~"^[a-z]+$"` | `pattern` attribute on `<input>` |
-| `*"default"` | Pre-populated field value |
-| `bool` | Checkbox widget |
-| `int`, `float` | `<input type="number">` |
+| CUE Constraint      | Form Effect                                |
+| ------------------- | ------------------------------------------ |
+| `"a" \| "b" \| "c"` | `<select>` dropdown with options           |
+| `>=1 & <=65535`     | `min` and `max` on `<input type="number">` |
+| `=~"^[a-z]+$"`      | `pattern` attribute on `<input>`           |
+| `*"default"`        | Pre-populated field value                  |
+| `bool`              | Checkbox widget                            |
+| `int`, `float`      | `<input type="number">`                    |
 
 ## UI Hints
 
 Place `// UI_Key: value` directives in CUE doc comments to customize form rendering:
 
-| Hint | Description |
-|---|---|
-| `UI_Label` | Custom display label (default: title-cased field name) |
-| `UI_Help` | Help text shown below the input |
-| `UI_Widget` | Widget override: `input`, `select`, `textarea`, `radio`, `checkbox` |
-| `UI_Hidden` | Hide field from UI (`true`/`false`) |
-| `UI_Readonly` | Make field read-only (`true`/`false`) |
-| `UI_Order` | Display order within section (integer, lower first) |
-| `UI_Columns` | Grid columns for a section (default: 2) |
-| `UI_Colspan` | Number of grid columns a field spans |
+| Hint          | Description                                                         |
+| ------------- | ------------------------------------------------------------------- |
+| `UI_Label`    | Custom display label (default: title-cased field name)              |
+| `UI_Help`     | Help text shown below the input                                     |
+| `UI_Widget`   | Widget override: `input`, `select`, `textarea`, `radio`, `checkbox` |
+| `UI_Hidden`   | Hide field from UI (`true`/`false`)                                 |
+| `UI_Readonly` | Make field read-only (`true`/`false`)                               |
+| `UI_Order`    | Display order within section (integer, lower first)                 |
+| `UI_Columns`  | Grid columns for a section (default: 2)                             |
+| `UI_Colspan`  | Number of grid columns a field spans                                |
 
 ## Project Structure
 
-```
+```text
 main.go              # Entry point — compiles schema, starts HTTP server
 schema.cue           # CUE schema defining the configuration
 webui/

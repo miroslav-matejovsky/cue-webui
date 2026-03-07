@@ -5,6 +5,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseUIHints_AllDirectives(t *testing.T) {
@@ -21,36 +22,18 @@ field: string
 `
 	ctx := cuecontext.New()
 	val := ctx.CompileString(src).LookupPath(cue.ParsePath("field"))
-	if val.Err() != nil {
-		t.Fatalf("compile error: %v", val.Err())
-	}
+	require.NoError(t, val.Err())
 
 	h := ParseUIHints(val)
 
-	if h.Label != "Server Address" {
-		t.Errorf("Label = %q, want %q", h.Label, "Server Address")
-	}
-	if h.Help != "Hostname or IP" {
-		t.Errorf("Help = %q, want %q", h.Help, "Hostname or IP")
-	}
-	if h.Widget != "textarea" {
-		t.Errorf("Widget = %q, want %q", h.Widget, "textarea")
-	}
-	if !h.Hidden {
-		t.Error("Hidden = false, want true")
-	}
-	if !h.Readonly {
-		t.Error("Readonly = false, want true")
-	}
-	if h.Order != 3 {
-		t.Errorf("Order = %d, want 3", h.Order)
-	}
-	if h.Columns != 4 {
-		t.Errorf("Columns = %d, want 4", h.Columns)
-	}
-	if h.Colspan != 2 {
-		t.Errorf("Colspan = %d, want 2", h.Colspan)
-	}
+	require.Equal(t, "Server Address", h.Label)
+	require.Equal(t, "Hostname or IP", h.Help)
+	require.Equal(t, "textarea", h.Widget)
+	require.True(t, h.Hidden)
+	require.True(t, h.Readonly)
+	require.Equal(t, 3, h.Order)
+	require.Equal(t, 4, h.Columns)
+	require.Equal(t, 2, h.Colspan)
 }
 
 func TestParseUIHints_Defaults(t *testing.T) {
@@ -60,24 +43,14 @@ field: string
 `
 	ctx := cuecontext.New()
 	val := ctx.CompileString(src).LookupPath(cue.ParsePath("field"))
-	if val.Err() != nil {
-		t.Fatalf("compile error: %v", val.Err())
-	}
+	require.NoError(t, val.Err())
 
 	h := ParseUIHints(val)
 
-	if h.Label != "" {
-		t.Errorf("Label = %q, want empty", h.Label)
-	}
-	if h.Order != 999 {
-		t.Errorf("Order = %d, want 999", h.Order)
-	}
-	if h.Hidden {
-		t.Error("Hidden = true, want false")
-	}
-	if h.Readonly {
-		t.Error("Readonly = true, want false")
-	}
+	require.Empty(t, h.Label)
+	require.Equal(t, 999, h.Order)
+	require.False(t, h.Hidden)
+	require.False(t, h.Readonly)
 }
 
 func TestParseUIHints_PartialDirectives(t *testing.T) {
@@ -88,137 +61,87 @@ field: int
 `
 	ctx := cuecontext.New()
 	val := ctx.CompileString(src).LookupPath(cue.ParsePath("field"))
-	if val.Err() != nil {
-		t.Fatalf("compile error: %v", val.Err())
-	}
+	require.NoError(t, val.Err())
 
 	h := ParseUIHints(val)
 
-	if h.Label != "My Field" {
-		t.Errorf("Label = %q, want %q", h.Label, "My Field")
-	}
-	if h.Help != "Some help text" {
-		t.Errorf("Help = %q, want %q", h.Help, "Some help text")
-	}
-	if h.Widget != "" {
-		t.Errorf("Widget = %q, want empty", h.Widget)
-	}
-	if h.Order != 999 {
-		t.Errorf("Order = %d, want 999", h.Order)
-	}
+	require.Equal(t, "My Field", h.Label)
+	require.Equal(t, "Some help text", h.Help)
+	require.Empty(t, h.Widget)
+	require.Equal(t, 999, h.Order)
 }
 
 func TestExtractOptions_Disjunction(t *testing.T) {
 	src := `field: "debug" | "info" | "warn" | "error"`
 	ctx := cuecontext.New()
 	val := ctx.CompileString(src).LookupPath(cue.ParsePath("field"))
-	if val.Err() != nil {
-		t.Fatalf("compile error: %v", val.Err())
-	}
+	require.NoError(t, val.Err())
 
 	options := ExtractOptions(val)
-	want := []string{"debug", "info", "warn", "error"}
-	if len(options) != len(want) {
-		t.Fatalf("Options length = %d, want %d", len(options), len(want))
-	}
-	for i, got := range options {
-		if got != want[i] {
-			t.Errorf("Options[%d] = %q, want %q", i, got, want[i])
-		}
-	}
+	require.Equal(t, []string{"debug", "info", "warn", "error"}, options)
 }
 
 func TestExtractOptions_NoDisjunction(t *testing.T) {
 	src := `field: string`
 	ctx := cuecontext.New()
 	val := ctx.CompileString(src).LookupPath(cue.ParsePath("field"))
-	if val.Err() != nil {
-		t.Fatalf("compile error: %v", val.Err())
-	}
+	require.NoError(t, val.Err())
 
 	options := ExtractOptions(val)
-	if len(options) != 0 {
-		t.Errorf("Options = %v, want empty", options)
-	}
+	require.Empty(t, options)
 }
 
 func TestExtractBounds(t *testing.T) {
 	src := `field: int & >=1 & <=65535`
 	ctx := cuecontext.New()
 	val := ctx.CompileString(src).LookupPath(cue.ParsePath("field"))
-	if val.Err() != nil {
-		t.Fatalf("compile error: %v", val.Err())
-	}
+	require.NoError(t, val.Err())
 
 	min, max := ExtractBounds(val)
-	if min != "1" {
-		t.Errorf("Min = %q, want %q", min, "1")
-	}
-	if max != "65535" {
-		t.Errorf("Max = %q, want %q", max, "65535")
-	}
+	require.Equal(t, "1", min)
+	require.Equal(t, "65535", max)
 }
 
 func TestExtractBounds_NoBounds(t *testing.T) {
 	src := `field: int`
 	ctx := cuecontext.New()
 	val := ctx.CompileString(src).LookupPath(cue.ParsePath("field"))
-	if val.Err() != nil {
-		t.Fatalf("compile error: %v", val.Err())
-	}
+	require.NoError(t, val.Err())
 
 	min, max := ExtractBounds(val)
-	if min != "" {
-		t.Errorf("Min = %q, want empty", min)
-	}
-	if max != "" {
-		t.Errorf("Max = %q, want empty", max)
-	}
+	require.Empty(t, min)
+	require.Empty(t, max)
 }
 
 func TestExtractBounds_OnlyMin(t *testing.T) {
 	src := `field: int & >=0`
 	ctx := cuecontext.New()
 	val := ctx.CompileString(src).LookupPath(cue.ParsePath("field"))
-	if val.Err() != nil {
-		t.Fatalf("compile error: %v", val.Err())
-	}
+	require.NoError(t, val.Err())
 
 	min, max := ExtractBounds(val)
-	if min != "0" {
-		t.Errorf("Min = %q, want %q", min, "0")
-	}
-	if max != "" {
-		t.Errorf("Max = %q, want empty", max)
-	}
+	require.Equal(t, "0", min)
+	require.Empty(t, max)
 }
 
 func TestExtractPattern(t *testing.T) {
 	src := `field: string & =~"^[a-z]+$"`
 	ctx := cuecontext.New()
 	val := ctx.CompileString(src).LookupPath(cue.ParsePath("field"))
-	if val.Err() != nil {
-		t.Fatalf("compile error: %v", val.Err())
-	}
+	require.NoError(t, val.Err())
 
 	pattern := ExtractPattern(val)
-	if pattern != "^[a-z]+$" {
-		t.Errorf("Pattern = %q, want %q", pattern, "^[a-z]+$")
-	}
+	require.Equal(t, "^[a-z]+$", pattern)
 }
 
 func TestExtractPattern_NoPattern(t *testing.T) {
 	src := `field: string`
 	ctx := cuecontext.New()
 	val := ctx.CompileString(src).LookupPath(cue.ParsePath("field"))
-	if val.Err() != nil {
-		t.Fatalf("compile error: %v", val.Err())
-	}
+	require.NoError(t, val.Err())
 
 	pattern := ExtractPattern(val)
-	if pattern != "" {
-		t.Errorf("Pattern = %q, want empty", pattern)
-	}
+	require.Empty(t, pattern)
 }
 
 func TestParseUIHints_InvalidOrder(t *testing.T) {
@@ -228,14 +151,10 @@ field: string
 `
 	ctx := cuecontext.New()
 	val := ctx.CompileString(src).LookupPath(cue.ParsePath("field"))
-	if val.Err() != nil {
-		t.Fatalf("compile error: %v", val.Err())
-	}
+	require.NoError(t, val.Err())
 
 	h := ParseUIHints(val)
-	if h.Order != 999 {
-		t.Errorf("Order = %d, want 999 (default)", h.Order)
-	}
+	require.Equal(t, 999, h.Order)
 }
 
 func TestParseUIHints_MalformedLine(t *testing.T) {
@@ -246,17 +165,11 @@ field: string
 `
 	ctx := cuecontext.New()
 	val := ctx.CompileString(src).LookupPath(cue.ParsePath("field"))
-	if val.Err() != nil {
-		t.Fatalf("compile error: %v", val.Err())
-	}
+	require.NoError(t, val.Err())
 
 	h := ParseUIHints(val)
-	if h.Label != "" {
-		t.Errorf("Label = %q, want empty (malformed line skipped)", h.Label)
-	}
-	if h.Help != "Valid help" {
-		t.Errorf("Help = %q, want %q", h.Help, "Valid help")
-	}
+	require.Empty(t, h.Label, "malformed line should be skipped")
+	require.Equal(t, "Valid help", h.Help)
 }
 
 func TestParseUIHints_HiddenFalse(t *testing.T) {
@@ -266,29 +179,19 @@ field: string
 `
 	ctx := cuecontext.New()
 	val := ctx.CompileString(src).LookupPath(cue.ParsePath("field"))
-	if val.Err() != nil {
-		t.Fatalf("compile error: %v", val.Err())
-	}
+	require.NoError(t, val.Err())
 
 	h := ParseUIHints(val)
-	if h.Hidden {
-		t.Error("Hidden = true, want false")
-	}
+	require.False(t, h.Hidden)
 }
 
 func TestParseUIHints_NoDocComments(t *testing.T) {
 	src := `field: string`
 	ctx := cuecontext.New()
 	val := ctx.CompileString(src).LookupPath(cue.ParsePath("field"))
-	if val.Err() != nil {
-		t.Fatalf("compile error: %v", val.Err())
-	}
+	require.NoError(t, val.Err())
 
 	h := ParseUIHints(val)
-	if h.Order != 999 {
-		t.Errorf("Order = %d, want 999", h.Order)
-	}
-	if h.Label != "" {
-		t.Errorf("Label = %q, want empty", h.Label)
-	}
+	require.Equal(t, 999, h.Order)
+	require.Empty(t, h.Label)
 }

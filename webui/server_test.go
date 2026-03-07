@@ -7,42 +7,28 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestFormTemplate_NotEmpty(t *testing.T) {
 	tmpl := FormTemplate()
-	if tmpl == "" {
-		t.Fatal("FormTemplate() returned empty string")
-	}
-	if !strings.Contains(tmpl, `{{define "form"}}`) {
-		t.Error("template missing form definition")
-	}
-	if !strings.Contains(tmpl, `{{define "result"}}`) {
-		t.Error("template missing result definition")
-	}
-	if !strings.Contains(tmpl, `{{define "section"}}`) {
-		t.Error("template missing section definition")
-	}
+	require.NotEmpty(t, tmpl, "FormTemplate() returned empty string")
+	require.Contains(t, tmpl, `{{define "form"}}`, "template missing form definition")
+	require.Contains(t, tmpl, `{{define "result"}}`, "template missing result definition")
+	require.Contains(t, tmpl, `{{define "section"}}`, "template missing section definition")
 }
 
 func TestStyleCSS_NotEmpty(t *testing.T) {
 	css := StyleCSS()
-	if css == "" {
-		t.Fatal("StyleCSS() returned empty string")
-	}
-	if !strings.Contains(css, ".container") {
-		t.Error("CSS missing .container rule")
-	}
+	require.NotEmpty(t, css, "StyleCSS() returned empty string")
+	require.Contains(t, css, ".container", "CSS missing .container rule")
 }
 
 func TestParseFormTemplate(t *testing.T) {
 	tmpl, err := ParseFormTemplate()
-	if err != nil {
-		t.Fatalf("ParseFormTemplate() error: %v", err)
-	}
-	if tmpl == nil {
-		t.Fatal("ParseFormTemplate() returned nil")
-	}
+	require.NoError(t, err)
+	require.NotNil(t, tmpl)
 }
 
 func sampleFormData() FormData {
@@ -65,9 +51,7 @@ func sampleFormData() FormData {
 func mustNewHandler(t *testing.T, fd FormData) http.Handler {
 	t.Helper()
 	h, err := NewHandler(fd)
-	if err != nil {
-		t.Fatalf("NewHandler error: %v", err)
-	}
+	require.NoError(t, err)
 	return h
 }
 
@@ -77,24 +61,12 @@ func TestNewHandler_FormPage(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("GET / status = %d, want %d", rec.Code, http.StatusOK)
-	}
-	ct := rec.Header().Get("Content-Type")
-	if !strings.HasPrefix(ct, "text/html") {
-		t.Errorf("Content-Type = %q, want text/html", ct)
-	}
-
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.True(t, strings.HasPrefix(rec.Header().Get("Content-Type"), "text/html"), "Content-Type should be text/html")
 	body := rec.Body.String()
-	if !strings.Contains(body, "Test Config") {
-		t.Error("response body missing title")
-	}
-	if !strings.Contains(body, "server.host") {
-		t.Error("response body missing field path server.host")
-	}
-	if !strings.Contains(body, "server.port") {
-		t.Error("response body missing field path server.port")
-	}
+	require.Contains(t, body, "Test Config", "response body missing title")
+	require.Contains(t, body, "server.host", "response body missing field path server.host")
+	require.Contains(t, body, "server.port", "response body missing field path server.port")
 }
 
 func TestNewHandler_NotFound(t *testing.T) {
@@ -103,9 +75,7 @@ func TestNewHandler_NotFound(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusNotFound {
-		t.Errorf("GET /nonexistent status = %d, want %d", rec.Code, http.StatusNotFound)
-	}
+	require.Equal(t, http.StatusNotFound, rec.Code)
 }
 
 func TestNewHandler_CSS(t *testing.T) {
@@ -114,17 +84,9 @@ func TestNewHandler_CSS(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("GET /static/style.css status = %d, want %d", rec.Code, http.StatusOK)
-	}
-	ct := rec.Header().Get("Content-Type")
-	if !strings.HasPrefix(ct, "text/css") {
-		t.Errorf("Content-Type = %q, want text/css", ct)
-	}
-	body := rec.Body.String()
-	if !strings.Contains(body, ".container") {
-		t.Error("CSS response missing .container rule")
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.True(t, strings.HasPrefix(rec.Header().Get("Content-Type"), "text/css"), "Content-Type should be text/css")
+	require.Contains(t, rec.Body.String(), ".container", "CSS response missing .container rule")
 }
 
 func TestNewHandler_SubmitPost(t *testing.T) {
@@ -138,19 +100,11 @@ func TestNewHandler_SubmitPost(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("POST /submit status = %d, want %d", rec.Code, http.StatusOK)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
 	body := rec.Body.String()
-	if !strings.Contains(body, "localhost") {
-		t.Error("result page missing submitted value 'localhost'")
-	}
-	if !strings.Contains(body, "8080") {
-		t.Error("result page missing submitted value '8080'")
-	}
-	if !strings.Contains(body, "server.host") {
-		t.Error("result page missing field key 'server.host'")
-	}
+	require.Contains(t, body, "localhost", "result page missing submitted value 'localhost'")
+	require.Contains(t, body, "8080", "result page missing submitted value '8080'")
+	require.Contains(t, body, "server.host", "result page missing field key 'server.host'")
 }
 
 func TestNewHandler_SubmitGetRedirects(t *testing.T) {
@@ -159,13 +113,8 @@ func TestNewHandler_SubmitGetRedirects(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusSeeOther {
-		t.Errorf("GET /submit status = %d, want %d", rec.Code, http.StatusSeeOther)
-	}
-	loc := rec.Header().Get("Location")
-	if loc != "/" {
-		t.Errorf("Location = %q, want %q", loc, "/")
-	}
+	require.Equal(t, http.StatusSeeOther, rec.Code)
+	require.Equal(t, "/", rec.Header().Get("Location"))
 }
 
 func TestNewHandler_FormRenders_SelectWidget(t *testing.T) {
@@ -184,12 +133,9 @@ func TestNewHandler_FormRenders_SelectWidget(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	body := rec.Body.String()
-	if !strings.Contains(body, "<select") {
-		t.Error("response missing <select> element")
-	}
-	if !strings.Contains(body, "http") || !strings.Contains(body, "https") {
-		t.Error("response missing select options")
-	}
+	require.Contains(t, body, "<select", "response missing <select> element")
+	require.Contains(t, body, "http", "response missing select option 'http'")
+	require.Contains(t, body, "https", "response missing select option 'https'")
 }
 
 func TestNewHandler_FormRenders_CheckboxWidget(t *testing.T) {
@@ -207,10 +153,7 @@ func TestNewHandler_FormRenders_CheckboxWidget(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	body := rec.Body.String()
-	if !strings.Contains(body, `type="checkbox"`) {
-		t.Error("response missing checkbox input")
-	}
+	require.Contains(t, rec.Body.String(), `type="checkbox"`, "response missing checkbox input")
 }
 
 func TestNewHandler_FormRenders_TextareaWidget(t *testing.T) {
@@ -228,10 +171,7 @@ func TestNewHandler_FormRenders_TextareaWidget(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	body := rec.Body.String()
-	if !strings.Contains(body, "<textarea") {
-		t.Error("response missing <textarea> element")
-	}
+	require.Contains(t, rec.Body.String(), "<textarea", "response missing <textarea> element")
 }
 
 func TestNewHandler_FormRenders_RadioWidget(t *testing.T) {
@@ -250,13 +190,9 @@ func TestNewHandler_FormRenders_RadioWidget(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	body := rec.Body.String()
-	if !strings.Contains(body, `type="radio"`) {
-		t.Error("response missing radio input")
-	}
+	require.Contains(t, body, `type="radio"`, "response missing radio input")
 	for _, opt := range []string{"debug", "info", "error"} {
-		if !strings.Contains(body, opt) {
-			t.Errorf("response missing radio option %q", opt)
-		}
+		require.Contains(t, body, opt, "response missing radio option %q", opt)
 	}
 }
 
@@ -277,13 +213,8 @@ func TestNewHandler_FormRenders_HiddenField(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	body := rec.Body.String()
-	// The hidden field's path should not appear as an input name
-	if strings.Contains(body, `name="secret"`) {
-		t.Error("hidden field 'secret' should not be rendered")
-	}
-	if !strings.Contains(body, `name="visible"`) {
-		t.Error("visible field should be rendered")
-	}
+	require.NotContains(t, body, `name="secret"`, "hidden field 'secret' should not be rendered")
+	require.Contains(t, body, `name="visible"`, "visible field should be rendered")
 }
 
 func TestNewHandler_SubmitResultSorted(t *testing.T) {
@@ -300,12 +231,9 @@ func TestNewHandler_SubmitResultSorted(t *testing.T) {
 	body := rec.Body.String()
 	aIdx := strings.Index(body, "a_field")
 	zIdx := strings.Index(body, "z_field")
-	if aIdx == -1 || zIdx == -1 {
-		t.Fatal("result page missing submitted fields")
-	}
-	if aIdx > zIdx {
-		t.Error("result fields not sorted alphabetically")
-	}
+	require.NotEqual(t, -1, aIdx, "result page missing 'a_field'")
+	require.NotEqual(t, -1, zIdx, "result page missing 'z_field'")
+	require.Less(t, aIdx, zIdx, "result fields not sorted alphabetically")
 }
 
 func TestNewHandler_FormRenders_NestedSections(t *testing.T) {
@@ -327,15 +255,9 @@ func TestNewHandler_FormRenders_NestedSections(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	body := rec.Body.String()
-	if !strings.Contains(body, "Outer") {
-		t.Error("missing outer section label")
-	}
-	if !strings.Contains(body, "Inner") {
-		t.Error("missing inner section label")
-	}
-	if !strings.Contains(body, "outer.inner.val") {
-		t.Error("missing nested field path")
-	}
+	require.Contains(t, body, "Outer", "missing outer section label")
+	require.Contains(t, body, "Inner", "missing inner section label")
+	require.Contains(t, body, "outer.inner.val", "missing nested field path")
 }
 
 func TestNewHandler_CSSContent(t *testing.T) {
@@ -345,8 +267,5 @@ func TestNewHandler_CSSContent(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	body, _ := io.ReadAll(rec.Result().Body)
-	css := StyleCSS()
-	if string(body) != css {
-		t.Error("served CSS does not match embedded CSS")
-	}
+	require.Equal(t, StyleCSS(), string(body), "served CSS does not match embedded CSS")
 }

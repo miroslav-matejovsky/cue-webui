@@ -5,6 +5,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCueTypeToInputType(t *testing.T) {
@@ -20,9 +21,7 @@ func TestCueTypeToInputType(t *testing.T) {
 		{cue.BytesKind, "text"},
 	}
 	for _, tt := range tests {
-		if got := CueTypeToInputType(tt.kind); got != tt.want {
-			t.Errorf("CueTypeToInputType(%v) = %q, want %q", tt.kind, got, tt.want)
-		}
+		require.Equal(t, tt.want, CueTypeToInputType(tt.kind))
 	}
 }
 
@@ -37,9 +36,7 @@ func TestTitleCase(t *testing.T) {
 		{"a", "A"},
 	}
 	for _, tt := range tests {
-		if got := TitleCase(tt.in); got != tt.want {
-			t.Errorf("TitleCase(%q) = %q, want %q", tt.in, got, tt.want)
-		}
+		require.Equal(t, tt.want, TitleCase(tt.in))
 	}
 }
 
@@ -48,16 +45,12 @@ func TestHasStructFields(t *testing.T) {
 
 	t.Run("with struct fields", func(t *testing.T) {
 		val := ctx.CompileString(`{ sub: { x: int } }`)
-		if !HasStructFields(val) {
-			t.Error("HasStructFields = false, want true")
-		}
+		require.True(t, HasStructFields(val))
 	})
 
 	t.Run("without struct fields", func(t *testing.T) {
 		val := ctx.CompileString(`{ x: int; y: string }`)
-		if HasStructFields(val) {
-			t.Error("HasStructFields = true, want false")
-		}
+		require.False(t, HasStructFields(val))
 	})
 }
 
@@ -72,52 +65,26 @@ port: int & >=1 & <=65535
 `
 	ctx := cuecontext.New()
 	val := ctx.CompileString(src)
-	if val.Err() != nil {
-		t.Fatalf("compile error: %v", val.Err())
-	}
+	require.NoError(t, val.Err())
 	hints := ParseUIHints(val)
 	section := ParseSection("connection", val, "", hints)
 
-	if section.Label != "Connection" {
-		t.Errorf("Label = %q, want %q", section.Label, "Connection")
-	}
-	if section.Columns != 2 {
-		t.Errorf("Columns = %d, want 2 (default)", section.Columns)
-	}
-	if len(section.Fields) != 2 {
-		t.Fatalf("Fields count = %d, want 2", len(section.Fields))
-	}
+	require.Equal(t, "Connection", section.Label)
+	require.Equal(t, 2, section.Columns)
+	require.Len(t, section.Fields, 2)
 
 	addr := section.Fields[0]
-	if addr.Name != "address" {
-		t.Errorf("Field[0].Name = %q, want %q", addr.Name, "address")
-	}
-	if addr.Label != "Server Address" {
-		t.Errorf("Field[0].Label = %q, want %q", addr.Label, "Server Address")
-	}
-	if addr.Help != "Hostname or IP" {
-		t.Errorf("Field[0].Help = %q, want %q", addr.Help, "Hostname or IP")
-	}
-	if addr.InputType != "text" {
-		t.Errorf("Field[0].InputType = %q, want %q", addr.InputType, "text")
-	}
-	if addr.Widget != "input" {
-		t.Errorf("Field[0].Widget = %q, want %q", addr.Widget, "input")
-	}
+	require.Equal(t, "address", addr.Name)
+	require.Equal(t, "Server Address", addr.Label)
+	require.Equal(t, "Hostname or IP", addr.Help)
+	require.Equal(t, "text", addr.InputType)
+	require.Equal(t, "input", addr.Widget)
 
 	port := section.Fields[1]
-	if port.Name != "port" {
-		t.Errorf("Field[1].Name = %q, want %q", port.Name, "port")
-	}
-	if port.InputType != "number" {
-		t.Errorf("Field[1].InputType = %q, want %q", port.InputType, "number")
-	}
-	if port.Min != "1" {
-		t.Errorf("Field[1].Min = %q, want %q", port.Min, "1")
-	}
-	if port.Max != "65535" {
-		t.Errorf("Field[1].Max = %q, want %q", port.Max, "65535")
-	}
+	require.Equal(t, "port", port.Name)
+	require.Equal(t, "number", port.InputType)
+	require.Equal(t, "1", port.Min)
+	require.Equal(t, "65535", port.Max)
 }
 
 func TestParseSection_WidgetInference(t *testing.T) {
@@ -130,27 +97,17 @@ enabled: bool
 	val := ctx.CompileString(src)
 	section := ParseSection("test", val, "", UIHints{})
 
-	if len(section.Fields) != 2 {
-		t.Fatalf("Fields count = %d, want 2", len(section.Fields))
-	}
+	require.Len(t, section.Fields, 2)
 
 	// Options present → select widget
 	proto := findField(section.Fields, "protocol")
-	if proto == nil {
-		t.Fatal("field 'protocol' not found")
-	}
-	if proto.Widget != "select" {
-		t.Errorf("protocol Widget = %q, want %q", proto.Widget, "select")
-	}
+	require.NotNil(t, proto, "field 'protocol' not found")
+	require.Equal(t, "select", proto.Widget)
 
 	// Bool → checkbox widget
 	enabled := findField(section.Fields, "enabled")
-	if enabled == nil {
-		t.Fatal("field 'enabled' not found")
-	}
-	if enabled.Widget != "checkbox" {
-		t.Errorf("enabled Widget = %q, want %q", enabled.Widget, "checkbox")
-	}
+	require.NotNil(t, enabled, "field 'enabled' not found")
+	require.Equal(t, "checkbox", enabled.Widget)
 }
 
 func TestParseSection_WidgetOverride(t *testing.T) {
@@ -162,12 +119,8 @@ notes: string
 	val := ctx.CompileString(src)
 	section := ParseSection("test", val, "", UIHints{})
 
-	if len(section.Fields) != 1 {
-		t.Fatalf("Fields count = %d, want 1", len(section.Fields))
-	}
-	if section.Fields[0].Widget != "textarea" {
-		t.Errorf("Widget = %q, want %q", section.Fields[0].Widget, "textarea")
-	}
+	require.Len(t, section.Fields, 1)
+	require.Equal(t, "textarea", section.Fields[0].Widget)
 }
 
 func TestParseSection_PathPrefix(t *testing.T) {
@@ -176,12 +129,8 @@ func TestParseSection_PathPrefix(t *testing.T) {
 	val := ctx.CompileString(src)
 	section := ParseSection("sub", val, "parent", UIHints{})
 
-	if len(section.Fields) != 1 {
-		t.Fatalf("Fields count = %d, want 1", len(section.Fields))
-	}
-	if section.Fields[0].Path != "parent.name" {
-		t.Errorf("Path = %q, want %q", section.Fields[0].Path, "parent.name")
-	}
+	require.Len(t, section.Fields, 1)
+	require.Equal(t, "parent.name", section.Fields[0].Path)
 }
 
 func TestParseSection_NestedStruct(t *testing.T) {
@@ -194,19 +143,11 @@ outer: {
 	val := ctx.CompileString(src)
 	section := ParseSection("root", val, "", UIHints{})
 
-	if len(section.Sections) != 1 {
-		t.Fatalf("Sub-sections count = %d, want 1", len(section.Sections))
-	}
+	require.Len(t, section.Sections, 1)
 	sub := section.Sections[0]
-	if sub.Name != "outer" {
-		t.Errorf("Sub-section Name = %q, want %q", sub.Name, "outer")
-	}
-	if len(sub.Fields) != 1 {
-		t.Fatalf("Sub-section Fields count = %d, want 1", len(sub.Fields))
-	}
-	if sub.Fields[0].Path != "outer.inner" {
-		t.Errorf("Sub-section Field Path = %q, want %q", sub.Fields[0].Path, "outer.inner")
-	}
+	require.Equal(t, "outer", sub.Name)
+	require.Len(t, sub.Fields, 1)
+	require.Equal(t, "outer.inner", sub.Fields[0].Path)
 }
 
 func TestParseSection_FieldOrder(t *testing.T) {
@@ -222,14 +163,10 @@ b: string
 	val := ctx.CompileString(src)
 	section := ParseSection("test", val, "", UIHints{})
 
-	if len(section.Fields) != 3 {
-		t.Fatalf("Fields count = %d, want 3", len(section.Fields))
-	}
+	require.Len(t, section.Fields, 3)
 	want := []string{"a", "b", "c"}
 	for i, f := range section.Fields {
-		if f.Name != want[i] {
-			t.Errorf("Fields[%d].Name = %q, want %q", i, f.Name, want[i])
-		}
+		require.Equal(t, want[i], f.Name)
 	}
 }
 
@@ -255,9 +192,7 @@ active: bool | *true
 		if !ok {
 			continue
 		}
-		if f.Default != want {
-			t.Errorf("Field %q Default = %q, want %q", f.Name, f.Default, want)
-		}
+		require.Equal(t, want, f.Default, "field %q default", f.Name)
 	}
 }
 
@@ -268,15 +203,9 @@ func TestParseSection_SectionHints(t *testing.T) {
 	hints := UIHints{Label: "Custom Label", Help: "Custom help", Columns: 4}
 	section := ParseSection("test", val, "", hints)
 
-	if section.Label != "Custom Label" {
-		t.Errorf("Label = %q, want %q", section.Label, "Custom Label")
-	}
-	if section.Help != "Custom help" {
-		t.Errorf("Help = %q, want %q", section.Help, "Custom help")
-	}
-	if section.Columns != 4 {
-		t.Errorf("Columns = %d, want 4", section.Columns)
-	}
+	require.Equal(t, "Custom Label", section.Label)
+	require.Equal(t, "Custom help", section.Help)
+	require.Equal(t, 4, section.Columns)
 }
 
 func TestBuildFormData_SingleRoot(t *testing.T) {
@@ -292,24 +221,14 @@ func TestBuildFormData_SingleRoot(t *testing.T) {
 `
 	ctx := cuecontext.New()
 	val := ctx.CompileString(src)
-	if val.Err() != nil {
-		t.Fatalf("compile error: %v", val.Err())
-	}
+	require.NoError(t, val.Err())
 
 	fd, err := BuildFormData(val)
-	if err != nil {
-		t.Fatalf("BuildFormData error: %v", err)
-	}
+	require.NoError(t, err)
 
-	if fd.Title != "My App" {
-		t.Errorf("Title = %q, want %q", fd.Title, "My App")
-	}
-	if len(fd.Sections) != 1 {
-		t.Fatalf("Sections count = %d, want 1", len(fd.Sections))
-	}
-	if fd.Sections[0].Name != "db" {
-		t.Errorf("Section[0].Name = %q, want %q", fd.Sections[0].Name, "db")
-	}
+	require.Equal(t, "My App", fd.Title)
+	require.Len(t, fd.Sections, 1)
+	require.Equal(t, "db", fd.Sections[0].Name)
 }
 
 func TestBuildFormData_MultipleRoots(t *testing.T) {
@@ -327,21 +246,13 @@ func TestBuildFormData_MultipleRoots(t *testing.T) {
 `
 	ctx := cuecontext.New()
 	val := ctx.CompileString(src)
-	if val.Err() != nil {
-		t.Fatalf("compile error: %v", val.Err())
-	}
+	require.NoError(t, val.Err())
 
 	fd, err := BuildFormData(val)
-	if err != nil {
-		t.Fatalf("BuildFormData error: %v", err)
-	}
+	require.NoError(t, err)
 
-	if fd.Title != "Configuration" {
-		t.Errorf("Title = %q, want %q", fd.Title, "Configuration")
-	}
-	if len(fd.Sections) != 2 {
-		t.Fatalf("Sections count = %d, want 2", len(fd.Sections))
-	}
+	require.Equal(t, "Configuration", fd.Title)
+	require.Len(t, fd.Sections, 2)
 }
 
 func TestBuildFormData_SingleRootWithScalars(t *testing.T) {
@@ -356,20 +267,12 @@ func TestBuildFormData_SingleRootWithScalars(t *testing.T) {
 	ctx := cuecontext.New()
 	val := ctx.CompileString(src)
 	fd, err := BuildFormData(val)
-	if err != nil {
-		t.Fatalf("BuildFormData error: %v", err)
-	}
+	require.NoError(t, err)
 
 	// Should have "General" section prepended + "db" sub-section
-	if len(fd.Sections) != 2 {
-		t.Fatalf("Sections count = %d, want 2", len(fd.Sections))
-	}
-	if fd.Sections[0].Label != "General" {
-		t.Errorf("Sections[0].Label = %q, want %q", fd.Sections[0].Label, "General")
-	}
-	if fd.Sections[1].Name != "db" {
-		t.Errorf("Sections[1].Name = %q, want %q", fd.Sections[1].Name, "db")
-	}
+	require.Len(t, fd.Sections, 2)
+	require.Equal(t, "General", fd.Sections[0].Label)
+	require.Equal(t, "db", fd.Sections[1].Name)
 }
 
 func TestBuildFormData_NoStructRootsFallback(t *testing.T) {
@@ -382,36 +285,26 @@ func TestBuildFormData_NoStructRootsFallback(t *testing.T) {
 	ctx := cuecontext.New()
 	val := ctx.CompileString(src)
 	fd, err := BuildFormData(val)
-	if err != nil {
-		t.Fatalf("BuildFormData error: %v", err)
-	}
+	require.NoError(t, err)
 
 	// #Simple has no struct sub-fields, so it falls back to rendering all defs.
 	// Single fallback root gets unwrapped — title comes from the definition name.
-	if fd.Title != "Simple" {
-		t.Errorf("Title = %q, want %q", fd.Title, "Simple")
-	}
-	if len(fd.Sections) != 1 {
-		t.Fatalf("Sections count = %d, want 1", len(fd.Sections))
-	}
+	require.Equal(t, "Simple", fd.Title)
+	require.Len(t, fd.Sections, 1)
 }
 
 func TestBuildFormData_InvalidCUE(t *testing.T) {
 	ctx := cuecontext.New()
 	val := ctx.CompileString(`invalid:::cue`)
 	_, err := BuildFormData(val)
-	if err == nil {
-		t.Error("BuildFormData should return error for invalid CUE")
-	}
+	require.Error(t, err, "BuildFormData should return error for invalid CUE")
 }
 
 func TestBuildFormData_NoDefs(t *testing.T) {
 	ctx := cuecontext.New()
 	val := ctx.CompileString(`42`)
 	_, err := BuildFormData(val)
-	if err == nil {
-		t.Error("BuildFormData should return error when no definitions found")
-	}
+	require.Error(t, err, "BuildFormData should return error when no definitions found")
 }
 
 // findField returns a pointer to the Field with the given name, or nil.
