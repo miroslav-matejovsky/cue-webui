@@ -15,7 +15,6 @@ func TestParseUIHints_AllDirectives(t *testing.T) {
 // UI_Hidden: true
 // UI_Readonly: true
 // UI_Order: 3
-// UI_Pattern: ^[a-z]+$
 // UI_Columns: 4
 // UI_Colspan: 2
 field: string
@@ -45,9 +44,6 @@ field: string
 	}
 	if h.Order != 3 {
 		t.Errorf("Order = %d, want 3", h.Order)
-	}
-	if h.Pattern != "^[a-z]+$" {
-		t.Errorf("Pattern = %q, want %q", h.Pattern, "^[a-z]+$")
 	}
 	if h.Columns != 4 {
 		t.Errorf("Columns = %d, want 4", h.Columns)
@@ -194,6 +190,34 @@ func TestExtractBounds_OnlyMin(t *testing.T) {
 	}
 	if max != "" {
 		t.Errorf("Max = %q, want empty", max)
+	}
+}
+
+func TestExtractPattern(t *testing.T) {
+	src := `field: string & =~"^[a-z]+$"`
+	ctx := cuecontext.New()
+	val := ctx.CompileString(src).LookupPath(cue.ParsePath("field"))
+	if val.Err() != nil {
+		t.Fatalf("compile error: %v", val.Err())
+	}
+
+	pattern := ExtractPattern(val)
+	if pattern != "^[a-z]+$" {
+		t.Errorf("Pattern = %q, want %q", pattern, "^[a-z]+$")
+	}
+}
+
+func TestExtractPattern_NoPattern(t *testing.T) {
+	src := `field: string`
+	ctx := cuecontext.New()
+	val := ctx.CompileString(src).LookupPath(cue.ParsePath("field"))
+	if val.Err() != nil {
+		t.Fatalf("compile error: %v", val.Err())
+	}
+
+	pattern := ExtractPattern(val)
+	if pattern != "" {
+		t.Errorf("Pattern = %q, want empty", pattern)
 	}
 }
 

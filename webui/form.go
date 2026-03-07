@@ -132,6 +132,7 @@ func ParseSection(name string, val cue.Value, pathPrefix string, sectionHints UI
 
 		options := ExtractOptions(fieldVal)
 		min, max := ExtractBounds(fieldVal)
+		pattern := ExtractPattern(fieldVal)
 
 		widget := fieldHints.Widget
 		if widget == "" {
@@ -185,7 +186,7 @@ func ParseSection(name string, val cue.Value, pathPrefix string, sectionHints UI
 			Order:     fieldHints.Order,
 			Min:       min,
 			Max:       max,
-			Pattern:   fieldHints.Pattern,
+			Pattern:   pattern,
 			Default:   defVal,
 			Colspan:   fieldHints.Colspan,
 		})

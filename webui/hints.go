@@ -18,7 +18,6 @@ import (
 //	UI_Hidden:      Hide field from UI (true/false)
 //	UI_Readonly:    Make field read-only (true/false)
 //	UI_Order:       Display order within section (integer, lower first)
-//	UI_Pattern:     Regex validation pattern for text inputs
 //	UI_Columns:     Grid columns for a section (default: 2)
 //	UI_Colspan:     Number of grid columns a field spans
 type UIHints struct {
@@ -28,7 +27,6 @@ type UIHints struct {
 	Hidden   bool
 	Readonly bool
 	Order    int
-	Pattern  string
 	Columns  int
 	Colspan  int
 }
@@ -63,8 +61,6 @@ func ParseUIHints(val cue.Value) UIHints {
 				if n, err := strconv.Atoi(value); err == nil {
 					hints.Order = n
 				}
-			case "UI_Pattern":
-				hints.Pattern = value
 			case "UI_Columns":
 				if n, err := strconv.Atoi(value); err == nil {
 					hints.Columns = n
@@ -116,4 +112,28 @@ func extractBoundsRecursive(val cue.Value, min, max *string) {
 			*max = fmt.Sprint(args[0])
 		}
 	}
+}
+
+// ExtractPattern extracts a regex pattern from a CUE =~ constraint.
+func ExtractPattern(val cue.Value) string {
+	return extractPatternRecursive(val)
+}
+
+func extractPatternRecursive(val cue.Value) string {
+	op, args := val.Expr()
+	switch op {
+	case cue.AndOp:
+		for _, a := range args {
+			if p := extractPatternRecursive(a); p != "" {
+				return p
+			}
+		}
+	case cue.RegexMatchOp:
+		if len(args) > 0 {
+			if s, err := args[0].String(); err == nil {
+				return s
+			}
+		}
+	}
+	return ""
 }
