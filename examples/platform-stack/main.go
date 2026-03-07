@@ -30,6 +30,6 @@ func main() {
 	}
 
 	addr := "localhost:8080"
-	log.Printf("Server starting on http://%s", addr)
+	log.Printf("Platform stack example running on http://%s", addr)
 	log.Fatal(http.ListenAndServe(addr, handler))
 }

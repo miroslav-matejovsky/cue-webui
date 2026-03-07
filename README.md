@@ -2,6 +2,8 @@
 
 Automatically generates an HTML form UI from a [CUE](https://cuelang.org/) schema. Define your configuration as CUE definitions with optional UI hints in doc comments, and get a fully functional web form with validation, sections, and multiple widget types.
 
+The module root is now library-focused. Runnable demos live under `examples/`.
+
 ## Features
 
 - **Schema-driven forms** — CUE definitions are introspected at startup; fields, types, and constraints become form inputs automatically.
@@ -13,11 +15,30 @@ Automatically generates an HTML form UI from a [CUE](https://cuelang.org/) schem
 
 ## Quick Start
 
+Run one of the embedded examples:
+
 ```bash
-go run main.go
+go run ./examples/basic
 ```
 
 Open [http://localhost:8080](http://localhost:8080) to see the generated form.
+
+More examples are available:
+
+```bash
+go run ./examples/nested-tabs
+go run ./examples/platform-stack
+```
+
+See [examples/README.md](examples/README.md) for the catalog.
+
+## Library Usage
+
+If you want to embed your own schema in an application, the flow is:
+
+1. Compile the CUE schema with `cuecontext.New().CompileString(...)`.
+2. Convert it to `webui.FormData` with `webui.BuildFormData(...)`.
+3. Serve the generated handler from `webui.NewHandler(...)`.
 
 ## Schema Example
 
@@ -94,8 +115,10 @@ Use `UI_Navigation: tabs` on any struct or definition that contains sub-sections
 ## Project Structure
 
 ```text
-main.go              # Entry point — compiles schema, starts HTTP server
-schema.cue           # CUE schema defining the configuration
+examples/            # Runnable demo applications with embedded schemas
+  basic/             # Original starter example
+  nested-tabs/       # Deeply nested tabbed configuration example
+  platform-stack/    # Denser real-world deployment schema example
 webui/
   hints.go           # UI hint parsing and CUE constraint extraction
   form.go            # Form/section/field builder from CUE values
@@ -106,8 +129,16 @@ webui/
     style.css        # Embedded stylesheet
 ```
 
+## Examples
+
+`examples/basic` is the original simple demo moved out of the repository root.
+
+`examples/nested-tabs` shows deeply nested configuration with repeated `UI_Navigation: tabs` hints so you can exercise the CSS-only tabbed UI.
+
+`examples/platform-stack` shows a larger operations-style schema with regex validation, defaults, readonly fields, hidden fields, radios, textarea overrides, and multi-column sections.
+
 ## Running Tests
 
 ```bash
-go test ./webui/ -v
+go test ./...
 ```
