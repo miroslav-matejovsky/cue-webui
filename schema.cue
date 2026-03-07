@@ -1,5 +1,9 @@
 // #Configuration defines the top-level server configuration.
-#Configuration: {
+// UI_Rows: 3
+// UI_Columns: 1
+#Connection: {
+	// UI_Label: Address
+	// UI_Help: The network address the server listens on.
 	// address is the hostname or IP address the server listens on.
 	// Example: "0.0.0.0" to listen on all interfaces, or "127.0.0.1" for localhost only.
 	address: string
@@ -13,14 +17,24 @@
 	protocol: string
 }
 
-// Additional constraints and notes for #Configuration.
+#Logging: {
+	// level is the minimum log level to output.
+	// Common levels: "debug", "info", "warn", "error".
+	level: string
+
+	// format specifies the log output format.
+	// Examples: "json", "text".
+	format: string
+
+	// output defines where logs are written.
+	// Examples: "stdout", "stderr", or a file path like "/var/log/server.log".
+	output: string
+}
+
 #Configuration: {
-	// address must be a non-empty string; no validation of DNS resolution is performed here.
-	address: string
+	// connection holds the server's network configuration.
+	connection: #Connection
 
-	// port values below 1024 require elevated privileges on most operating systems.
-	port: int
-
-	// protocol is case-sensitive and must match the transport layer implementation.
-	protocol: string
+	// logging defines the server's logging settings.
+	logging: #Logging
 }
