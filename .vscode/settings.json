@@ -1,0 +1,10 @@
+{
+ "window.title": "${rootName}",
+ "gopls": {
+  "standaloneTags": [
+   "ignore",
+   "mage"
+  ]
+ },
+ "cSpell.words": []
+}
