@@ -9,7 +9,6 @@
   "editor.wordWrap": "off",
   "editor.tabSize": 2,
   "editor.acceptSuggestionOnEnter": "off",
-  "editor.defaultFormatter": "golang.go",
   "workbench.startupEditor": "none",
   "workbench.iconTheme": "vscode-icons",
   "workbench.editor.showTabs": "none",
@@ -26,7 +25,9 @@
   "git.autofetch": false,
   "git.enableSmartCommit": true,
   "git.confirmSync": false,
-  "git.branchProtection": ["main"],
+  "git.branchProtection": [
+    "main"
+  ],
   "terminal.integrated.fontFamily": "MesloLGS Nerd Font",
   "terminal.integrated.profiles.windows": {
     "pwsh": {
@@ -39,4 +40,13 @@
   "powershell.startAutomatically": true,
   "powershell.integratedConsole.showOnStartup": false,
   "powershell.enableProfileLoading": true,
+  "vsicons.associations.files": [
+    {
+      "icon": "config",
+      "extensions": [
+        "cue"
+      ],
+      "format": "svg"
+    }
+  ]
 }
