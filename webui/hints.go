@@ -1,6 +1,7 @@
 package webui
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -13,34 +14,29 @@ import (
 //
 //	UI_Label:       Custom display label (default: field name, title-cased)
 //	UI_Help:        Help text shown below the input
-//	UI_Placeholder: Input placeholder text
 //	UI_Widget:      Widget override: input, select, textarea, radio, checkbox
-//	UI_Options:     Comma-separated values for select/radio widgets
 //	UI_Hidden:      Hide field from UI (true/false)
 //	UI_Readonly:    Make field read-only (true/false)
 //	UI_Order:       Display order within section (integer, lower first)
-//	UI_Min:         Minimum value for number inputs
-//	UI_Max:         Maximum value for number inputs
-//	UI_Pattern:     Regex validation pattern for text inputs
 //	UI_Columns:     Grid columns for a section (default: 2)
 //	UI_Colspan:     Number of grid columns a field spans
+//	UI_Navigation:  Child section layout mode (currently: tabs)
 type UIHints struct {
-	Label       string
-	Help        string
-	Placeholder string
-	Widget      string
-	Options     []string
-	Hidden      bool
-	Readonly    bool
-	Order       int
-	Min         string
-	Max         string
-	Pattern     string
-	Columns     int
-	Colspan     int
+	Label      string
+	Help       string
+	Widget     string
+	Hidden     bool
+	Readonly   bool
+	Order      int
+	Columns    int
+	Colspan    int
+	Navigation string
 }
 
 // ParseUIHints extracts UI_ directives from a CUE value's doc comments.
+// Each comment line matching "UI_Key: value" is parsed into the corresponding
+// UIHints field. Unrecognised keys and malformed lines are silently ignored.
+// If no UI_Order is specified, the default order is 999.
 func ParseUIHints(val cue.Value) UIHints {
 	hints := UIHints{Order: 999}
 	for _, cg := range val.Doc() {
@@ -60,17 +56,8 @@ func ParseUIHints(val cue.Value) UIHints {
 				hints.Label = value
 			case "UI_Help":
 				hints.Help = value
-			case "UI_Placeholder":
-				hints.Placeholder = value
 			case "UI_Widget":
 				hints.Widget = value
-			case "UI_Options":
-				for _, opt := range strings.Split(value, ",") {
-					opt = strings.TrimSpace(opt)
-					if opt != "" {
-						hints.Options = append(hints.Options, opt)
-					}
-				}
 			case "UI_Hidden":
 				hints.Hidden = value == "true"
 			case "UI_Readonly":
@@ -79,12 +66,6 @@ func ParseUIHints(val cue.Value) UIHints {
 				if n, err := strconv.Atoi(value); err == nil {
 					hints.Order = n
 				}
-			case "UI_Min":
-				hints.Min = value
-			case "UI_Max":
-				hints.Max = value
-			case "UI_Pattern":
-				hints.Pattern = value
 			case "UI_Columns":
 				if n, err := strconv.Atoi(value); err == nil {
 					hints.Columns = n
@@ -93,8 +74,79 @@ func ParseUIHints(val cue.Value) UIHints {
 				if n, err := strconv.Atoi(value); err == nil {
 					hints.Colspan = n
 				}
+			case "UI_Navigation":
+				hints.Navigation = value
 			}
 		}
 	}
 	return hints
+}
+
+// ExtractOptions extracts string options from a CUE disjunction (e.g. "a" | "b" | "c").
+// Returns nil if the value's top-level expression is not a disjunction (OrOp) or
+// contains no string arguments.
+func ExtractOptions(val cue.Value) []string {
+	op, args := val.Expr()
+	if op != cue.OrOp {
+		return nil
+	}
+	var options []string
+	for _, a := range args {
+		if s, err := a.String(); err == nil {
+			options = append(options, s)
+		}
+	}
+	return options
+}
+
+// ExtractBounds extracts min and max bounds from CUE constraints (e.g. >=1 & <=65535).
+// It walks the expression tree through AndOp nodes looking for >=, >, <=, and < operators.
+// Returns empty strings for any bound that is not present.
+func ExtractBounds(val cue.Value) (min, max string) {
+	extractBoundsRecursive(val, &min, &max)
+	return
+}
+
+func extractBoundsRecursive(val cue.Value, min, max *string) {
+	op, args := val.Expr()
+	switch op {
+	case cue.AndOp:
+		for _, a := range args {
+			extractBoundsRecursive(a, min, max)
+		}
+	case cue.GreaterThanEqualOp, cue.GreaterThanOp:
+		if len(args) > 0 {
+			*min = fmt.Sprint(args[0])
+		}
+	case cue.LessThanEqualOp, cue.LessThanOp:
+		if len(args) > 0 {
+			*max = fmt.Sprint(args[0])
+		}
+	}
+}
+
+// ExtractPattern extracts a regex pattern from a CUE =~ (RegexMatchOp) constraint.
+// It walks the expression tree through AndOp nodes and returns the first regex
+// string found, or an empty string if no =~ constraint is present.
+func ExtractPattern(val cue.Value) string {
+	return extractPatternRecursive(val)
+}
+
+func extractPatternRecursive(val cue.Value) string {
+	op, args := val.Expr()
+	switch op {
+	case cue.AndOp:
+		for _, a := range args {
+			if p := extractPatternRecursive(a); p != "" {
+				return p
+			}
+		}
+	case cue.RegexMatchOp:
+		if len(args) > 0 {
+			if s, err := args[0].String(); err == nil {
+				return s
+			}
+		}
+	}
+	return ""
 }

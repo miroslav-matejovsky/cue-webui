@@ -26,8 +26,12 @@ func ParseFormTemplate() (*template.Template, error) {
 	return template.New("base").Parse(formTemplateStr)
 }
 
-// NewHandler returns an http.Handler that serves the form UI, CSS, and submit endpoint
-// for the given FormData.
+// NewHandler returns an http.Handler that serves three endpoints:
+//   - GET  /                  — renders the HTML form for the given FormData.
+//   - GET  /static/style.css  — serves the embedded CSS stylesheet.
+//   - POST /submit            — processes form submission and renders a results page.
+//
+// Non-POST requests to /submit are redirected to /. Any other path returns 404.
 func NewHandler(formData FormData) (http.Handler, error) {
 	mux := http.NewServeMux()
 	tmpl, err := ParseFormTemplate()
