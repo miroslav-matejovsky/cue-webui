@@ -19,6 +19,14 @@ func main() {
 	config := rootValue.LookupPath(configPath)
 
 	fmt.Println("=== #Configuration ===")
+	configDoc := ""
+	for _, d := range config.Doc() {
+		configDoc += d.Text()
+	}
+	if configDoc != "" {
+		fmt.Printf("Doc:    %s", configDoc)
+	}
+	fmt.Println("---")
 	iter, err := config.Fields(cue.Optional(true))
 	if err != nil {
 		fmt.Println("Error iterating fields:", err)
