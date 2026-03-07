@@ -18,8 +18,8 @@ func NewMock(initialValues map[string]string) *Mock {
 	return &Mock{values: cloneValues(initialValues)}
 }
 
-// Load returns a copy of the currently stored values.
-func (m *Mock) Load(_ context.Context) (map[string]string, error) {
+// LoadMap returns a copy of the currently stored values.
+func (m *Mock) LoadMap(_ context.Context) (map[string]string, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -29,8 +29,8 @@ func (m *Mock) Load(_ context.Context) (map[string]string, error) {
 	return cloneValues(m.values), nil
 }
 
-// Save replaces the currently stored values with a copy of the submitted set.
-func (m *Mock) Save(_ context.Context, values map[string]string) error {
+// SaveMap replaces the currently stored values with a copy of the submitted set.
+func (m *Mock) SaveMap(_ context.Context, values map[string]string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

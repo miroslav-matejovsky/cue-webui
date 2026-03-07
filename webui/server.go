@@ -46,7 +46,7 @@ func NewHandlerWithStorage(formData FormData, store storage.Store) (http.Handler
 			return
 		}
 
-		storedValues, err := store.Load(r.Context())
+		storedValues, err := store.LoadMap(r.Context())
 		if err != nil {
 			http.Error(w, "Failed to load configuration", http.StatusInternalServerError)
 			return
@@ -74,14 +74,14 @@ func NewHandlerWithStorage(formData FormData, store storage.Store) (http.Handler
 			return
 		}
 
-		existingValues, err := store.Load(r.Context())
+		existingValues, err := store.LoadMap(r.Context())
 		if err != nil {
 			http.Error(w, "Failed to load configuration", http.StatusInternalServerError)
 			return
 		}
 
 		updatedValues := mergeSubmittedValues(formData, existingValues, r.PostForm)
-		if err := store.Save(r.Context(), updatedValues); err != nil {
+		if err := store.SaveMap(r.Context(), updatedValues); err != nil {
 			http.Error(w, "Failed to save configuration", http.StatusInternalServerError)
 			return
 		}
