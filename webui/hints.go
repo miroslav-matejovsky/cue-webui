@@ -32,6 +32,9 @@ type UIHints struct {
 }
 
 // ParseUIHints extracts UI_ directives from a CUE value's doc comments.
+// Each comment line matching "UI_Key: value" is parsed into the corresponding
+// UIHints field. Unrecognised keys and malformed lines are silently ignored.
+// If no UI_Order is specified, the default order is 999.
 func ParseUIHints(val cue.Value) UIHints {
 	hints := UIHints{Order: 999}
 	for _, cg := range val.Doc() {
@@ -76,6 +79,8 @@ func ParseUIHints(val cue.Value) UIHints {
 }
 
 // ExtractOptions extracts string options from a CUE disjunction (e.g. "a" | "b" | "c").
+// Returns nil if the value's top-level expression is not a disjunction (OrOp) or
+// contains no string arguments.
 func ExtractOptions(val cue.Value) []string {
 	op, args := val.Expr()
 	if op != cue.OrOp {
@@ -91,6 +96,8 @@ func ExtractOptions(val cue.Value) []string {
 }
 
 // ExtractBounds extracts min and max bounds from CUE constraints (e.g. >=1 & <=65535).
+// It walks the expression tree through AndOp nodes looking for >=, >, <=, and < operators.
+// Returns empty strings for any bound that is not present.
 func ExtractBounds(val cue.Value) (min, max string) {
 	extractBoundsRecursive(val, &min, &max)
 	return
@@ -114,7 +121,9 @@ func extractBoundsRecursive(val cue.Value, min, max *string) {
 	}
 }
 
-// ExtractPattern extracts a regex pattern from a CUE =~ constraint.
+// ExtractPattern extracts a regex pattern from a CUE =~ (RegexMatchOp) constraint.
+// It walks the expression tree through AndOp nodes and returns the first regex
+// string found, or an empty string if no =~ constraint is present.
 func ExtractPattern(val cue.Value) string {
 	return extractPatternRecursive(val)
 }

@@ -9,40 +9,45 @@ import (
 	"cuelang.org/go/cue"
 )
 
-// Field represents a single form field.
+// Field represents a single form field derived from a scalar CUE value.
+//
+// Constraint-derived attributes (Options, Min, Max, Pattern) are extracted
+// from native CUE expressions (disjunctions, bounds, =~ regex), while
+// display attributes (Label, Help, Widget, etc.) come from UI_ doc-comment hints.
 type Field struct {
-	Name      string
-	Path      string
-	Type      string
-	InputType string
-	Label     string
-	Help      string
-	Widget    string
-	Options   []string
-	Hidden    bool
-	Readonly  bool
-	Order     int
-	Min       string
-	Max       string
-	Pattern   string
-	Default   string
-	Colspan   int
+	Name      string   // CUE field name.
+	Path      string   // Dot-separated path used as the HTML input name (e.g. "connection.port").
+	Type      string   // CUE kind as a string (e.g. "string", "int").
+	InputType string   // HTML input type ("text", "number", or "checkbox").
+	Label     string   // Human-readable label shown in the form.
+	Help      string   // Help text displayed below the input.
+	Widget    string   // Rendered widget: "input", "select", "textarea", "radio", or "checkbox".
+	Options   []string // Allowed values extracted from a CUE disjunction.
+	Hidden    bool     // Whether the field is hidden from the UI.
+	Readonly  bool     // Whether the field is rendered as read-only.
+	Order     int      // Sort weight within its section (lower values first).
+	Min       string   // Minimum value from a CUE >= or > bound.
+	Max       string   // Maximum value from a CUE <= or < bound.
+	Pattern   string   // Regex pattern from a CUE =~ constraint.
+	Default   string   // Default value from a CUE default marker (*value).
+	Colspan   int      // Number of grid columns the field spans.
 }
 
-// Section represents a group of fields (a CUE struct).
+// Section represents a group of fields derived from a CUE struct.
+// Sections can be nested: a struct field within a struct becomes a child Section.
 type Section struct {
-	Name     string
-	Label    string
-	Help     string
-	Columns  int
-	Fields   []Field
-	Sections []Section
+	Name     string    // CUE field name of the struct.
+	Label    string    // Display label (from UI_Label or title-cased Name).
+	Help     string    // Help text shown below the section legend.
+	Columns  int       // Number of CSS grid columns (default 2).
+	Fields   []Field   // Scalar fields, sorted by Order.
+	Sections []Section // Nested sub-sections.
 }
 
-// FormData is passed to the form template.
+// FormData is the top-level view model passed to the "form" HTML template.
 type FormData struct {
-	Title    string
-	Sections []Section
+	Title    string    // Page title, derived from the root definition's UI_Label.
+	Sections []Section // Top-level sections rendered as fieldsets.
 }
 
 // KeyValue represents a submitted form value.
@@ -51,10 +56,11 @@ type KeyValue struct {
 	Value string
 }
 
-// ResultData is passed to the result template.
+// ResultData is the view model passed to the "result" HTML template
+// after a form submission.
 type ResultData struct {
-	Title  string
-	Values []KeyValue
+	Title  string     // Page title carried over from FormData.
+	Values []KeyValue // Submitted key-value pairs, sorted alphabetically.
 }
 
 // CueTypeToInputType maps a CUE kind to an HTML input type.
@@ -92,6 +98,11 @@ func HasStructFields(val cue.Value) bool {
 }
 
 // ParseSection recursively converts a CUE struct value into a Section.
+// Struct-typed fields become nested sub-sections; scalar fields become form Fields.
+// The pathPrefix is prepended to field names to build dot-separated input paths
+// (e.g. passing "connection" produces paths like "connection.port").
+// Widget type, options, bounds, and pattern are inferred from native CUE
+// constraints; display hints are taken from sectionHints and per-field UI_ comments.
 func ParseSection(name string, val cue.Value, pathPrefix string, sectionHints UIHints) Section {
 	section := Section{
 		Name:    name,
@@ -200,6 +211,16 @@ func ParseSection(name string, val cue.Value, pathPrefix string, sectionHints UI
 }
 
 // BuildFormData constructs a FormData from a compiled CUE schema value.
+// It discovers all top-level CUE definitions (#Name) and identifies "root"
+// definitions — those containing struct sub-fields that aggregate other definitions.
+//
+// When a single root is found it is unwrapped: its label becomes the page title
+// and its struct fields become top-level sections. Any direct scalar fields on
+// the root are collected into a prepended "General" section.
+//
+// When multiple roots exist, each is rendered as its own section under a
+// generic "Configuration" title. If no definition contains struct sub-fields,
+// all definitions are treated as roots.
 func BuildFormData(rootValue cue.Value) (FormData, error) {
 	if err := rootValue.Err(); err != nil {
 		return FormData{}, err
