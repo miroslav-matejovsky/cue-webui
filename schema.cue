@@ -1,40 +1,47 @@
-// #Configuration defines the top-level server configuration.
-// UI_Rows: 3
-// UI_Columns: 1
+// Connection settings for the server.
 #Connection: {
-	// UI_Label: Address
-	// UI_Help: The network address the server listens on.
-	// address is the hostname or IP address the server listens on.
-	// Example: "0.0.0.0" to listen on all interfaces, or "127.0.0.1" for localhost only.
+	// UI_Label: Server Address
+	// UI_Help: Hostname or IP address to listen on
+	// UI_Placeholder: e.g. 0.0.0.0
 	address: string
 
-	// port is the TCP port number the server binds to.
-	// Must be a valid port in the range 1–65535.
+	// UI_Help: TCP port number (1-65535)
+	// UI_Placeholder: 8080
+	// UI_Min: 1
+	// UI_Max: 65535
 	port: int
 
-	// protocol specifies the network protocol used by the server.
-	// Typical values: "http", "https", "tcp", "udp".
+	// UI_Widget: select
+	// UI_Options: http, https, tcp, udp
+	// UI_Help: Network protocol to use
 	protocol: string
 }
 
+// Logging configuration.
 #Logging: {
-	// level is the minimum log level to output.
-	// Common levels: "debug", "info", "warn", "error".
+	// UI_Widget: select
+	// UI_Options: debug, info, warn, error
+	// UI_Help: Minimum log level to output
 	level: string
 
-	// format specifies the log output format.
-	// Examples: "json", "text".
+	// UI_Widget: select
+	// UI_Options: json, text
+	// UI_Help: Log output format
 	format: string
 
-	// output defines where logs are written.
-	// Examples: "stdout", "stderr", or a file path like "/var/log/server.log".
+	// UI_Placeholder: stdout
+	// UI_Help: Log output destination (stdout, stderr, or file path)
 	output: string
 }
 
+// Top-level server configuration.
+// UI_Label: Server Configuration
 #Configuration: {
-	// connection holds the server's network configuration.
+	// UI_Help: Network and protocol settings
+	// UI_Columns: 3
 	connection: #Connection
 
-	// logging defines the server's logging settings.
+	// UI_Help: Logging preferences
+	// UI_Columns: 3
 	logging: #Logging
 }
