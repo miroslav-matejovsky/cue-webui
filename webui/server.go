@@ -28,9 +28,12 @@ func ParseFormTemplate() (*template.Template, error) {
 
 // NewHandler returns an http.Handler that serves the form UI, CSS, and submit endpoint
 // for the given FormData.
-func NewHandler(formData FormData) http.Handler {
+func NewHandler(formData FormData) (http.Handler, error) {
 	mux := http.NewServeMux()
-	tmpl := template.Must(ParseFormTemplate())
+	tmpl, err := ParseFormTemplate()
+	if err != nil {
+		return nil, fmt.Errorf("parsing form template: %w", err)
+	}
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
@@ -71,5 +74,5 @@ func NewHandler(formData FormData) http.Handler {
 		}
 	})
 
-	return mux
+	return mux, nil
 }

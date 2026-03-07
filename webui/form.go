@@ -1,6 +1,7 @@
 package webui
 
 import (
+	"errors"
 	"sort"
 	"strconv"
 	"strings"
@@ -196,16 +197,26 @@ func ParseSection(name string, val cue.Value, pathPrefix string, sectionHints UI
 }
 
 // BuildFormData constructs a FormData from a compiled CUE schema value.
-func BuildFormData(rootValue cue.Value) FormData {
+func BuildFormData(rootValue cue.Value) (FormData, error) {
+	if err := rootValue.Err(); err != nil {
+		return FormData{}, err
+	}
+
 	type defEntry struct {
 		name string
 		val  cue.Value
 	}
 	var allDefs []defEntry
-	defIter, _ := rootValue.Fields(cue.Definitions(true))
+	defIter, err := rootValue.Fields(cue.Definitions(true))
+	if err != nil {
+		return FormData{}, err
+	}
 	for defIter.Next() {
 		name := strings.TrimPrefix(defIter.Selector().String(), "#")
 		allDefs = append(allDefs, defEntry{name, defIter.Value()})
+	}
+	if len(allDefs) == 0 {
+		return FormData{}, errors.New("no CUE definitions found in schema")
 	}
 
 	// Root definitions are those with struct sub-fields (they aggregate others).
@@ -246,5 +257,5 @@ func BuildFormData(rootValue cue.Value) FormData {
 		}
 	}
 
-	return formData
+	return formData, nil
 }

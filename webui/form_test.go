@@ -303,7 +303,10 @@ func TestBuildFormData_SingleRoot(t *testing.T) {
 		t.Fatalf("compile error: %v", val.Err())
 	}
 
-	fd := BuildFormData(val)
+	fd, err := BuildFormData(val)
+	if err != nil {
+		t.Fatalf("BuildFormData error: %v", err)
+	}
 
 	if fd.Title != "My App" {
 		t.Errorf("Title = %q, want %q", fd.Title, "My App")
@@ -335,7 +338,10 @@ func TestBuildFormData_MultipleRoots(t *testing.T) {
 		t.Fatalf("compile error: %v", val.Err())
 	}
 
-	fd := BuildFormData(val)
+	fd, err := BuildFormData(val)
+	if err != nil {
+		t.Fatalf("BuildFormData error: %v", err)
+	}
 
 	if fd.Title != "Configuration" {
 		t.Errorf("Title = %q, want %q", fd.Title, "Configuration")
@@ -356,7 +362,10 @@ func TestBuildFormData_SingleRootWithScalars(t *testing.T) {
 `
 	ctx := cuecontext.New()
 	val := ctx.CompileString(src)
-	fd := BuildFormData(val)
+	fd, err := BuildFormData(val)
+	if err != nil {
+		t.Fatalf("BuildFormData error: %v", err)
+	}
 
 	// Should have "General" section prepended + "db" sub-section
 	if len(fd.Sections) != 2 {
@@ -379,7 +388,10 @@ func TestBuildFormData_NoStructRootsFallback(t *testing.T) {
 `
 	ctx := cuecontext.New()
 	val := ctx.CompileString(src)
-	fd := BuildFormData(val)
+	fd, err := BuildFormData(val)
+	if err != nil {
+		t.Fatalf("BuildFormData error: %v", err)
+	}
 
 	// #Simple has no struct sub-fields, so it falls back to rendering all defs.
 	// Single fallback root gets unwrapped — title comes from the definition name.
@@ -388,6 +400,24 @@ func TestBuildFormData_NoStructRootsFallback(t *testing.T) {
 	}
 	if len(fd.Sections) != 1 {
 		t.Fatalf("Sections count = %d, want 1", len(fd.Sections))
+	}
+}
+
+func TestBuildFormData_InvalidCUE(t *testing.T) {
+	ctx := cuecontext.New()
+	val := ctx.CompileString(`invalid:::cue`)
+	_, err := BuildFormData(val)
+	if err == nil {
+		t.Error("BuildFormData should return error for invalid CUE")
+	}
+}
+
+func TestBuildFormData_NoDefs(t *testing.T) {
+	ctx := cuecontext.New()
+	val := ctx.CompileString(`42`)
+	_, err := BuildFormData(val)
+	if err == nil {
+		t.Error("BuildFormData should return error when no definitions found")
 	}
 }
 

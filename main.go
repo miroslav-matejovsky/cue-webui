@@ -19,8 +19,15 @@ func main() {
 		log.Fatalf("Failed to compile CUE schema: %v", rootValue.Err())
 	}
 
-	formData := webui.BuildFormData(rootValue)
-	handler := webui.NewHandler(formData)
+	formData, err := webui.BuildFormData(rootValue)
+	if err != nil {
+		log.Fatalf("Failed to build form data: %v", err)
+	}
+
+	handler, err := webui.NewHandler(formData)
+	if err != nil {
+		log.Fatalf("Failed to create handler: %v", err)
+	}
 
 	addr := "localhost:8080"
 	log.Printf("Server starting on http://%s", addr)
