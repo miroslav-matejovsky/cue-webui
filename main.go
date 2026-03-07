@@ -12,6 +12,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+	"github.com/miroslav-matejovsky/cue-webui/webui"
 )
 
 //go:embed schema.cue
@@ -22,41 +23,6 @@ var formTemplateStr string
 
 //go:embed static/style.css
 var cssFile string
-
-// --- UI hint parsing ---
-
-// UIHints holds parsed UI_ directives from CUE doc comments.
-//
-// Supported hints (place in CUE comments as "// UI_Key: value"):
-//
-//	UI_Label:       Custom display label (default: field name, title-cased)
-//	UI_Help:        Help text shown below the input
-//	UI_Placeholder: Input placeholder text
-//	UI_Widget:      Widget override: input, select, textarea, radio, checkbox
-//	UI_Options:     Comma-separated values for select/radio widgets
-//	UI_Hidden:      Hide field from UI (true/false)
-//	UI_Readonly:    Make field read-only (true/false)
-//	UI_Order:       Display order within section (integer, lower first)
-//	UI_Min:         Minimum value for number inputs
-//	UI_Max:         Maximum value for number inputs
-//	UI_Pattern:     Regex validation pattern for text inputs
-//	UI_Columns:     Grid columns for a section (default: 2)
-//	UI_Colspan:     Number of grid columns a field spans
-type UIHints struct {
-	Label       string
-	Help        string
-	Placeholder string
-	Widget      string
-	Options     []string
-	Hidden      bool
-	Readonly    bool
-	Order       int
-	Min         string
-	Max         string
-	Pattern     string
-	Columns     int
-	Colspan     int
-}
 
 // Field represents a single form field.
 type Field struct {
@@ -107,65 +73,6 @@ type ResultData struct {
 	Values []KeyValue
 }
 
-// parseUIHints extracts UI_ directives from a CUE value's doc comments.
-func parseUIHints(val cue.Value) UIHints {
-	hints := UIHints{Order: 999}
-	for _, cg := range val.Doc() {
-		for _, line := range strings.Split(cg.Text(), "\n") {
-			line = strings.TrimSpace(line)
-			if !strings.HasPrefix(line, "UI_") {
-				continue
-			}
-			parts := strings.SplitN(line, ":", 2)
-			if len(parts) != 2 {
-				continue
-			}
-			key := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
-			switch key {
-			case "UI_Label":
-				hints.Label = value
-			case "UI_Help":
-				hints.Help = value
-			case "UI_Placeholder":
-				hints.Placeholder = value
-			case "UI_Widget":
-				hints.Widget = value
-			case "UI_Options":
-				for _, opt := range strings.Split(value, ",") {
-					opt = strings.TrimSpace(opt)
-					if opt != "" {
-						hints.Options = append(hints.Options, opt)
-					}
-				}
-			case "UI_Hidden":
-				hints.Hidden = value == "true"
-			case "UI_Readonly":
-				hints.Readonly = value == "true"
-			case "UI_Order":
-				if n, err := strconv.Atoi(value); err == nil {
-					hints.Order = n
-				}
-			case "UI_Min":
-				hints.Min = value
-			case "UI_Max":
-				hints.Max = value
-			case "UI_Pattern":
-				hints.Pattern = value
-			case "UI_Columns":
-				if n, err := strconv.Atoi(value); err == nil {
-					hints.Columns = n
-				}
-			case "UI_Colspan":
-				if n, err := strconv.Atoi(value); err == nil {
-					hints.Colspan = n
-				}
-			}
-		}
-	}
-	return hints
-}
-
 // --- CUE to form model ---
 
 func cueTypeToInputType(kind cue.Kind) string {
@@ -201,7 +108,7 @@ func hasStructFields(val cue.Value) bool {
 }
 
 // parseSection recursively converts a CUE struct value into a Section.
-func parseSection(name string, val cue.Value, pathPrefix string, sectionHints UIHints) Section {
+func parseSection(name string, val cue.Value, pathPrefix string, sectionHints webui.UIHints) Section {
 	section := Section{
 		Name:    name,
 		Label:   sectionHints.Label,
@@ -227,7 +134,7 @@ func parseSection(name string, val cue.Value, pathPrefix string, sectionHints UI
 			fieldPath = pathPrefix + "." + fieldName
 		}
 
-		fieldHints := parseUIHints(fieldVal)
+		fieldHints := webui.ParseUIHints(fieldVal)
 
 		// Struct field → nested section
 		if fieldVal.IncompleteKind() == cue.StructKind {
@@ -340,7 +247,7 @@ func main() {
 	var formData FormData
 	if len(roots) == 1 {
 		// Single root: unwrap it — its sub-sections become the top-level sections.
-		hints := parseUIHints(roots[0].val)
+		hints := webui.ParseUIHints(roots[0].val)
 		top := parseSection(roots[0].name, roots[0].val, "", hints)
 		formData.Title = top.Label
 		formData.Sections = top.Sections
@@ -357,7 +264,7 @@ func main() {
 	} else {
 		formData.Title = "Configuration"
 		for _, r := range roots {
-			hints := parseUIHints(r.val)
+			hints := webui.ParseUIHints(r.val)
 			s := parseSection(r.name, r.val, "", hints)
 			formData.Sections = append(formData.Sections, s)
 		}
