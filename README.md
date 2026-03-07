@@ -38,8 +38,8 @@ If you want to embed your own schema in an application, the flow is:
 
 1. Compile the CUE schema with `cuecontext.New().CompileString(...)`.
 2. Convert it to `webui.FormData` with `webui.BuildFormData(...)`.
-3. Optionally provide a storage backend that implements `storage.Store`.
-4. Serve the generated handler from `webui.NewHandler(...)` or `webui.NewHandlerWithStorage(...)`.
+3. Provide a storage backend that implements `storage.Store`.
+4. Serve the generated handler from `webui.NewHandlerWithStorage(...)`.
 
 ## Schema Example
 

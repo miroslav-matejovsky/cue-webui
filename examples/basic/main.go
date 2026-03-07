@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"cuelang.org/go/cue/cuecontext"
+	"github.com/miroslav-matejovsky/cue-webui/storage"
 	"github.com/miroslav-matejovsky/cue-webui/webui"
 )
 
@@ -24,7 +25,7 @@ func main() {
 		log.Fatalf("Failed to build form data: %v", err)
 	}
 
-	handler, err := webui.NewHandler(formData)
+	handler, err := webui.NewHandlerWithStorage(formData, storage.NewMock(nil))
 	if err != nil {
 		log.Fatalf("Failed to create handler: %v", err)
 	}

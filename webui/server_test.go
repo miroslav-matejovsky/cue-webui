@@ -49,13 +49,6 @@ func sampleFormData() FormData {
 	}
 }
 
-func mustNewHandler(t *testing.T, fd FormData) http.Handler {
-	t.Helper()
-	h, err := NewHandler(fd)
-	require.NoError(t, err)
-	return h
-}
-
 func mustNewHandlerWithStorage(t *testing.T, fd FormData, store storage.Store) http.Handler {
 	t.Helper()
 	h, err := NewHandlerWithStorage(fd, store)
@@ -64,7 +57,7 @@ func mustNewHandlerWithStorage(t *testing.T, fd FormData, store storage.Store) h
 }
 
 func TestNewHandler_FormPage(t *testing.T) {
-	handler := mustNewHandler(t, sampleFormData())
+	handler := mustNewHandlerWithStorage(t, sampleFormData(), storage.NewMock(nil))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -78,7 +71,7 @@ func TestNewHandler_FormPage(t *testing.T) {
 }
 
 func TestNewHandler_NotFound(t *testing.T) {
-	handler := mustNewHandler(t, sampleFormData())
+	handler := mustNewHandlerWithStorage(t, sampleFormData(), storage.NewMock(nil))
 	req := httptest.NewRequest(http.MethodGet, "/nonexistent", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -87,7 +80,7 @@ func TestNewHandler_NotFound(t *testing.T) {
 }
 
 func TestNewHandler_CSS(t *testing.T) {
-	handler := mustNewHandler(t, sampleFormData())
+	handler := mustNewHandlerWithStorage(t, sampleFormData(), storage.NewMock(nil))
 	req := httptest.NewRequest(http.MethodGet, "/static/style.css", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -98,7 +91,7 @@ func TestNewHandler_CSS(t *testing.T) {
 }
 
 func TestNewHandler_SubmitPost(t *testing.T) {
-	handler := mustNewHandler(t, sampleFormData())
+	handler := mustNewHandlerWithStorage(t, sampleFormData(), storage.NewMock(nil))
 	form := url.Values{}
 	form.Set("server.host", "localhost")
 	form.Set("server.port", "8080")
@@ -116,7 +109,7 @@ func TestNewHandler_SubmitPost(t *testing.T) {
 }
 
 func TestNewHandler_SubmitGetRedirects(t *testing.T) {
-	handler := mustNewHandler(t, sampleFormData())
+	handler := mustNewHandlerWithStorage(t, sampleFormData(), storage.NewMock(nil))
 	req := httptest.NewRequest(http.MethodGet, "/submit", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -135,7 +128,7 @@ func TestNewHandler_FormRenders_SelectWidget(t *testing.T) {
 			},
 		}},
 	}
-	handler := mustNewHandler(t, fd)
+	handler := mustNewHandlerWithStorage(t, fd, storage.NewMock(nil))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -156,7 +149,7 @@ func TestNewHandler_FormRenders_CheckboxWidget(t *testing.T) {
 			},
 		}},
 	}
-	handler := mustNewHandler(t, fd)
+	handler := mustNewHandlerWithStorage(t, fd, storage.NewMock(nil))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -203,7 +196,7 @@ func TestNewHandler_FormRenders_TextareaWidget(t *testing.T) {
 			},
 		}},
 	}
-	handler := mustNewHandler(t, fd)
+	handler := mustNewHandlerWithStorage(t, fd, storage.NewMock(nil))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -221,7 +214,7 @@ func TestNewHandler_FormRenders_RadioWidget(t *testing.T) {
 			},
 		}},
 	}
-	handler := mustNewHandler(t, fd)
+	handler := mustNewHandlerWithStorage(t, fd, storage.NewMock(nil))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -244,7 +237,7 @@ func TestNewHandler_FormRenders_HiddenField(t *testing.T) {
 			},
 		}},
 	}
-	handler := mustNewHandler(t, fd)
+	handler := mustNewHandlerWithStorage(t, fd, storage.NewMock(nil))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -255,7 +248,7 @@ func TestNewHandler_FormRenders_HiddenField(t *testing.T) {
 }
 
 func TestNewHandler_SubmitResultSorted(t *testing.T) {
-	handler := mustNewHandler(t, sampleFormData())
+	handler := mustNewHandlerWithStorage(t, sampleFormData(), storage.NewMock(nil))
 	form := url.Values{}
 	form.Set("z_field", "last")
 	form.Set("a_field", "first")
@@ -323,7 +316,7 @@ func TestNewHandler_FormRenders_NestedSections(t *testing.T) {
 			}},
 		}},
 	}
-	handler := mustNewHandler(t, fd)
+	handler := mustNewHandlerWithStorage(t, fd, storage.NewMock(nil))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -360,7 +353,7 @@ func TestNewHandler_FormRenders_TabNavigation(t *testing.T) {
 			},
 		},
 	}
-	handler := mustNewHandler(t, fd)
+	handler := mustNewHandlerWithStorage(t, fd, storage.NewMock(nil))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -375,7 +368,7 @@ func TestNewHandler_FormRenders_TabNavigation(t *testing.T) {
 }
 
 func TestNewHandler_CSSContent(t *testing.T) {
-	handler := mustNewHandler(t, sampleFormData())
+	handler := mustNewHandlerWithStorage(t, sampleFormData(), storage.NewMock(nil))
 	req := httptest.NewRequest(http.MethodGet, "/static/style.css", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)

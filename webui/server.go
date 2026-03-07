@@ -26,18 +26,13 @@ func ParseFormTemplate() (*template.Template, error) {
 	return template.New("base").Parse(formTemplateStr)
 }
 
-// NewHandler returns an http.Handler that serves three endpoints:
+// NewHandlerWithStorage returns an http.Handler that serves three endpoints:
 //   - GET  /                  — renders the HTML form for the given FormData.
 //   - GET  /static/style.css  — serves the embedded CSS stylesheet.
 //   - POST /submit            — processes form submission and renders a results page.
 //
 // Non-POST requests to /submit are redirected to /. Any other path returns 404.
-func NewHandler(formData FormData) (http.Handler, error) {
-	return NewHandlerWithStorage(formData, nil)
-}
-
-// NewHandlerWithStorage returns an http.Handler that renders a form hydrated from
-// a Store and persists submitted values back to that Store.
+// The provided Store is used to hydrate the form on load and persist values on submit.
 func NewHandlerWithStorage(formData FormData, store storage.Store) (http.Handler, error) {
 	mux := http.NewServeMux()
 	tmpl, err := ParseFormTemplate()
@@ -51,15 +46,12 @@ func NewHandlerWithStorage(formData FormData, store storage.Store) (http.Handler
 			return
 		}
 
-		viewData := formData
-		if store != nil {
-			storedValues, err := store.Load(r.Context())
-			if err != nil {
-				http.Error(w, "Failed to load configuration", http.StatusInternalServerError)
-				return
-			}
-			viewData = applyStoredValues(formData, storedValues)
+		storedValues, err := store.Load(r.Context())
+		if err != nil {
+			http.Error(w, "Failed to load configuration", http.StatusInternalServerError)
+			return
 		}
+		viewData := applyStoredValues(formData, storedValues)
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if err := tmpl.ExecuteTemplate(w, "form", viewData); err != nil {
@@ -82,22 +74,16 @@ func NewHandlerWithStorage(formData FormData, store storage.Store) (http.Handler
 			return
 		}
 
-		existingValues := map[string]string{}
-		if store != nil {
-			storedValues, err := store.Load(r.Context())
-			if err != nil {
-				http.Error(w, "Failed to load configuration", http.StatusInternalServerError)
-				return
-			}
-			existingValues = storedValues
+		existingValues, err := store.Load(r.Context())
+		if err != nil {
+			http.Error(w, "Failed to load configuration", http.StatusInternalServerError)
+			return
 		}
 
 		updatedValues := mergeSubmittedValues(formData, existingValues, r.PostForm)
-		if store != nil {
-			if err := store.Save(r.Context(), updatedValues); err != nil {
-				http.Error(w, "Failed to save configuration", http.StatusInternalServerError)
-				return
-			}
+		if err := store.Save(r.Context(), updatedValues); err != nil {
+			http.Error(w, "Failed to save configuration", http.StatusInternalServerError)
+			return
 		}
 
 		result := resultDataFromValues(formData.Title, updatedValues)
