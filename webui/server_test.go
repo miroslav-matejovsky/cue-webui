@@ -260,6 +260,46 @@ func TestNewHandler_FormRenders_NestedSections(t *testing.T) {
 	require.Contains(t, body, "outer.inner.val", "missing nested field path")
 }
 
+func TestNewHandler_FormRenders_TabNavigation(t *testing.T) {
+	fd := FormData{
+		Title:      "Tabbed Test",
+		ID:         "root-config",
+		Navigation: "tabs",
+		Sections: []Section{
+			{
+				ID:      "network",
+				Name:    "network",
+				Label:   "Network",
+				Columns: 2,
+				Fields: []Field{
+					{Name: "host", Path: "network.host", Label: "Host", Widget: "input", InputType: "text"},
+				},
+			},
+			{
+				ID:      "logging",
+				Name:    "logging",
+				Label:   "Logging",
+				Columns: 1,
+				Fields: []Field{
+					{Name: "level", Path: "logging.level", Label: "Level", Widget: "select", Options: []string{"debug", "info"}},
+				},
+			},
+		},
+	}
+	handler := mustNewHandler(t, fd)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	require.Contains(t, body, `class="tabset"`, "response missing tab container")
+	require.Contains(t, body, `name="tabs-root-config"`, "response missing grouped tab toggle name")
+	require.Contains(t, body, `for="tab-network"`, "response missing network tab label")
+	require.Contains(t, body, `for="tab-logging"`, "response missing logging tab label")
+	require.Contains(t, body, "network.host", "response missing first tab field")
+	require.Contains(t, body, "logging.level", "response missing second tab field")
+}
+
 func TestNewHandler_CSSContent(t *testing.T) {
 	handler := mustNewHandler(t, sampleFormData())
 	req := httptest.NewRequest(http.MethodGet, "/static/style.css", nil)

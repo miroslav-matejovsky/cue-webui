@@ -7,7 +7,7 @@ Automatically generates an HTML form UI from a [CUE](https://cuelang.org/) schem
 - **Schema-driven forms** — CUE definitions are introspected at startup; fields, types, and constraints become form inputs automatically.
 - **Native CUE validation** — Disjunctions (`"a" | "b"`) render as `<select>` dropdowns, bound constraints (`>=1 & <=65535`) become HTML `min`/`max` attributes, and `=~` regex constraints become `pattern` attributes.
 - **UI hints via doc comments** — Control labels, help text, widget types, layout, visibility, ordering, and more with `// UI_*` directives.
-- **Nested sections** — Struct fields become collapsible fieldsets with configurable grid columns.
+- **Nested sections and tabs** — Struct fields become recursive sections, and deeply nested groups can switch to CSS-only tabs.
 - **Default values** — CUE defaults (`*"value"`) pre-populate form fields.
 - **No JavaScript required** — Pure server-rendered HTML with embedded CSS.
 
@@ -57,16 +57,39 @@ Native CUE features used for form behavior:
 
 Place `// UI_Key: value` directives in CUE doc comments to customize form rendering:
 
-| Hint          | Description                                                         |
-| ------------- | ------------------------------------------------------------------- |
-| `UI_Label`    | Custom display label (default: title-cased field name)              |
-| `UI_Help`     | Help text shown below the input                                     |
-| `UI_Widget`   | Widget override: `input`, `select`, `textarea`, `radio`, `checkbox` |
-| `UI_Hidden`   | Hide field from UI (`true`/`false`)                                 |
-| `UI_Readonly` | Make field read-only (`true`/`false`)                               |
-| `UI_Order`    | Display order within section (integer, lower first)                 |
-| `UI_Columns`  | Grid columns for a section (default: 2)                             |
-| `UI_Colspan`  | Number of grid columns a field spans                                |
+| Hint            | Description                                                          |
+| --------------- | -------------------------------------------------------------------- |
+| `UI_Label`      | Custom display label (default: title-cased field name)               |
+| `UI_Help`       | Help text shown below the input                                      |
+| `UI_Widget`     | Widget override: `input`, `select`, `textarea`, `radio`, `checkbox`  |
+| `UI_Hidden`     | Hide field from UI (`true`/`false`)                                  |
+| `UI_Readonly`   | Make field read-only (`true`/`false`)                                |
+| `UI_Order`      | Display order within section (integer, lower first)                  |
+| `UI_Columns`    | Grid columns for a section (default: 2)                              |
+| `UI_Colspan`    | Number of grid columns a field spans                                 |
+| `UI_Navigation` | Child section layout mode. Set to `tabs` for CSS-only tab navigation |
+
+Use `UI_Navigation: tabs` on any struct or definition that contains sub-sections when you want deeper configuration trees to render as tabs instead of a long stack of nested fieldsets.
+
+```cue
+#TLS: {
+  certFile: string
+  keyFile:  string
+}
+
+#Auth: {
+  mode: "none" | "mtls"
+  tls:  #TLS
+}
+
+#Configuration: {
+  // UI_Navigation: tabs
+  server: {
+    host: string
+  }
+  auth: #Auth
+}
+```
 
 ## Project Structure
 

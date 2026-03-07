@@ -200,17 +200,41 @@ func TestParseSection_SectionHints(t *testing.T) {
 	src := `x: string`
 	ctx := cuecontext.New()
 	val := ctx.CompileString(src)
-	hints := UIHints{Label: "Custom Label", Help: "Custom help", Columns: 4}
+	hints := UIHints{Label: "Custom Label", Help: "Custom help", Columns: 4, Navigation: "tabs"}
 	section := ParseSection("test", val, "", hints)
 
 	require.Equal(t, "Custom Label", section.Label)
 	require.Equal(t, "Custom help", section.Help)
 	require.Equal(t, 4, section.Columns)
+	require.Equal(t, "tabs", section.Navigation)
+	require.Equal(t, "test", section.ID)
+}
+
+func TestParseSection_NavigationHint(t *testing.T) {
+	src := `
+// UI_Navigation: tabs
+group: {
+	first: {
+		name: string
+	}
+	second: {
+		enabled: bool
+	}
+}
+`
+	ctx := cuecontext.New()
+	val := ctx.CompileString(src)
+	section := ParseSection("root", val, "", UIHints{})
+
+	require.Len(t, section.Sections, 1)
+	require.Equal(t, "tabs", section.Sections[0].Navigation)
+	require.Equal(t, "group", section.Sections[0].ID)
 }
 
 func TestBuildFormData_SingleRoot(t *testing.T) {
 	src := `
 // UI_Label: My App
+// UI_Navigation: tabs
 #Config: {
 	// UI_Columns: 3
 	db: {
@@ -227,6 +251,8 @@ func TestBuildFormData_SingleRoot(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "My App", fd.Title)
+	require.Equal(t, "tabs", fd.Navigation)
+	require.Equal(t, "Config", fd.ID)
 	require.Len(t, fd.Sections, 1)
 	require.Equal(t, "db", fd.Sections[0].Name)
 }

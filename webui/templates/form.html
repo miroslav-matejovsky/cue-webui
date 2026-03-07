@@ -13,9 +13,7 @@
   <div class="container">
     <h1>{{.Title}}</h1>
     <form method="POST" action="/submit">
-      {{range .Sections}}
-      {{template "section" .}}
-      {{end}}
+      {{template "sections_block" .}}
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">Submit</button>
         <button type="reset" class="btn btn-secondary">Reset</button>
@@ -66,55 +64,98 @@
 </html>
 {{end}}
 
+{{define "sections_block"}}
+{{if .Sections}}
+{{if eq .Navigation "tabs"}}
+<div class="tabset">
+  {{range $index, $section := .Sections}}
+  <input class="tab-toggle" type="radio" name="tabs-{{$.ID}}" id="tab-{{$section.ID}}" {{if eq $index 0}}checked{{end}}>
+  <label class="tab-label" for="tab-{{$section.ID}}">{{$section.Label}}</label>
+  <div class="tab-panel">
+    {{template "section_body" $section}}
+  </div>
+  {{end}}
+</div>
+{{else}}
+{{range .Sections}}
+{{template "section" .}}
+{{end}}
+{{end}}
+{{end}}
+{{end}}
+
 {{define "section"}}
-<fieldset>
+<fieldset class="section-card{{if eq .Navigation " tabs"}} section-tabs-enabled{{end}}">
   <legend>{{.Label}}</legend>
-  {{if .Help}}<p class="section-help">{{.Help}}</p>{{end}}
-  <div class="grid columns-{{.Columns}}">
-    {{range .Fields}}
-    {{if not .Hidden}}
-    <div class="field{{if .Colspan}} colspan-{{.Colspan}}{{end}}">
-      {{if eq .Widget "checkbox"}}
-      <label class="checkbox-label">
-        <input type="checkbox" id="{{.Path}}" name="{{.Path}}" value="true" {{if .Readonly}} disabled{{end}}>
-        <span>{{.Label}}</span>
+  {{template "section_body" .}}
+</fieldset>
+{{end}}
+
+{{define "section_body"}}
+{{if .Help}}<p class="section-help">{{.Help}}</p>{{end}}
+{{if .Fields}}
+<div class="grid columns-{{.Columns}}">
+  {{range .Fields}}
+  {{if not .Hidden}}
+  <div class="field{{if .Colspan}} colspan-{{.Colspan}}{{end}}">
+    {{if eq .Widget "checkbox"}}
+    <label class="checkbox-label">
+      <input type="checkbox" id="{{.Path}}" name="{{.Path}}" value="true" {{if .Readonly}} disabled{{end}}>
+      <span>{{.Label}}</span>
+    </label>
+    {{else}}
+    <label for="{{.Path}}">{{.Label}}</label>
+    {{if eq .Widget "select"}}
+    <select id="{{.Path}}" name="{{.Path}}" {{if .Readonly}} disabled{{end}}>
+      <option value="">— select —</option>
+      {{$f := .}}
+      {{range .Options}}
+      <option value="{{.}}" {{if eq . $f.Default}} selected{{end}}>{{.}}</option>
+      {{end}}
+    </select>
+    {{else if eq .Widget "textarea"}}
+    <textarea id="{{.Path}}" name="{{.Path}}" {{if .Readonly}} readonly{{end}}>{{.Default}}</textarea>
+    {{else if eq .Widget "radio"}}
+    <div class="radio-group">
+      {{$f := .}}
+      {{range .Options}}
+      <label class="radio-label">
+        <input type="radio" name="{{$f.Path}}" value="{{.}}" {{if eq . $f.Default}} checked{{end}}{{if $f.Readonly}}
+          disabled{{end}}>
+        <span>{{.}}</span>
       </label>
-      {{else}}
-      <label for="{{.Path}}">{{.Label}}</label>
-      {{if eq .Widget "select"}}
-      <select id="{{.Path}}" name="{{.Path}}" {{if .Readonly}} disabled{{end}}>
-        <option value="">— select —</option>
-        {{$f := .}}
-        {{range .Options}}
-        <option value="{{.}}" {{if eq . $f.Default}} selected{{end}}>{{.}}</option>
-        {{end}}
-      </select>
-      {{else if eq .Widget "textarea"}}
-      <textarea id="{{.Path}}" name="{{.Path}}" {{if .Readonly}} readonly{{end}}>{{.Default}}</textarea>
-      {{else if eq .Widget "radio"}}
-      <div class="radio-group">
-        {{$f := .}}
-        {{range .Options}}
-        <label class="radio-label">
-          <input type="radio" name="{{$f.Path}}" value="{{.}}" {{if eq . $f.Default}} checked{{end}}{{if $f.Readonly}}
-            disabled{{end}}>
-          <span>{{.}}</span>
-        </label>
-        {{end}}
-      </div>
-      {{else}}
-      <input type="{{.InputType}}" id="{{.Path}}" name="{{.Path}}" value="{{.Default}}" {{if .Min}} min="{{.Min}}"
-        {{end}}{{if .Max}} max="{{.Max}}" {{end}}{{if .Pattern}} pattern="{{.Pattern}}" {{end}}{{if .Readonly}}
-        readonly{{end}}>
       {{end}}
-      {{end}}
-      {{if .Help}}<small class="help">{{.Help}}</small>{{end}}
+    </div>
+    {{else}}
+    <input type="{{.InputType}}" id="{{.Path}}" name="{{.Path}}" value="{{.Default}}" {{if .Min}} min="{{.Min}}"
+      {{end}}{{if .Max}} max="{{.Max}}" {{end}}{{if .Pattern}} pattern="{{.Pattern}}" {{end}}{{if .Readonly}}
+      readonly{{end}}>
+    {{end}}
+    {{end}}
+    {{if .Help}}<small class="help">{{.Help}}</small>{{end}}
+  </div>
+  {{end}}
+  {{end}}
+</div>
+{{end}}
+{{if .Sections}}
+<div class="nested-sections{{if eq .Navigation " tabs"}} nested-sections-tabs{{else}} nested-sections-stack{{end}}">
+  {{if eq .Navigation "tabs"}}
+  <div class="tabset">
+    {{range $index, $section := .Sections}}
+    <input class="tab-toggle" type="radio" name="tabs-{{$.ID}}" id="tab-{{$section.ID}}" {{if eq $index
+      0}}checked{{end}}>
+    <label class="tab-label" for="tab-{{$section.ID}}">{{$section.Label}}</label>
+    <div class="tab-panel">
+      {{template "section_body" $section}}
     </div>
     {{end}}
-    {{end}}
   </div>
+  {{else}}
   {{range .Sections}}
   {{template "section" .}}
   {{end}}
-</fieldset>
+  {{end}}
+</div>
+{{end}}
 {{end}}

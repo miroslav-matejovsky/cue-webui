@@ -99,6 +99,15 @@ h1 {
   .colspan-4 {
     grid-column: span 1;
   }
+
+  .tabset {
+    gap: 0.5rem;
+  }
+
+  .tab-label {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 /* --- Fieldset / Section --- */
@@ -121,6 +130,81 @@ legend {
   color: var(--color-text-muted);
   font-size: 0.85rem;
   margin-bottom: 0.75rem;
+}
+
+.nested-sections {
+  margin-top: 1rem;
+}
+
+.nested-sections-stack>fieldset:last-child {
+  margin-bottom: 0;
+}
+
+.section-tabs-enabled {
+  padding-bottom: 1rem;
+}
+
+.tabset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 0.5rem;
+  align-items: flex-start;
+}
+
+.tab-toggle {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tab-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: #eef2ff;
+  color: var(--color-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.tab-toggle:focus+.tab-label,
+.tab-label:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-focus);
+}
+
+.tab-toggle:checked+.tab-label {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.tab-panel {
+  display: none;
+  width: 100%;
+  order: 2;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: #fbfcfe;
+  padding: 1rem;
+}
+
+.tab-toggle:checked+.tab-label+.tab-panel {
+  display: block;
+}
+
+.tab-panel>.section-help:first-child {
+  margin-top: 0;
+}
+
+.tab-panel>.nested-sections,
+.tab-panel>fieldset,
+.tab-panel>.grid {
+  margin-top: 0;
 }
 
 /* --- Form fields --- */

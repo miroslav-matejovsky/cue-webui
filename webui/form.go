@@ -36,18 +36,22 @@ type Field struct {
 // Section represents a group of fields derived from a CUE struct.
 // Sections can be nested: a struct field within a struct becomes a child Section.
 type Section struct {
-	Name     string    // CUE field name of the struct.
-	Label    string    // Display label (from UI_Label or title-cased Name).
-	Help     string    // Help text shown below the section legend.
-	Columns  int       // Number of CSS grid columns (default 2).
-	Fields   []Field   // Scalar fields, sorted by Order.
-	Sections []Section // Nested sub-sections.
+	ID         string    // Stable HTML-safe identifier for this section.
+	Name       string    // CUE field name of the struct.
+	Label      string    // Display label (from UI_Label or title-cased Name).
+	Help       string    // Help text shown below the section legend.
+	Columns    int       // Number of CSS grid columns (default 2).
+	Navigation string    // Child section layout mode (e.g. "tabs").
+	Fields     []Field   // Scalar fields, sorted by Order.
+	Sections   []Section // Nested sub-sections.
 }
 
 // FormData is the top-level view model passed to the "form" HTML template.
 type FormData struct {
-	Title    string    // Page title, derived from the root definition's UI_Label.
-	Sections []Section // Top-level sections rendered as fieldsets.
+	Title      string    // Page title, derived from the root definition's UI_Label.
+	ID         string    // Stable HTML-safe identifier for top-level tab groups.
+	Navigation string    // Top-level section layout mode (e.g. "tabs").
+	Sections   []Section // Top-level sections rendered as fieldsets.
 }
 
 // KeyValue represents a submitted form value.
@@ -83,6 +87,35 @@ func TitleCase(s string) string {
 	return strings.ToUpper(s[:1]) + s[1:]
 }
 
+func buildSectionID(name string, pathPrefix string) string {
+	raw := name
+	if pathPrefix != "" {
+		raw = pathPrefix
+	}
+
+	var builder strings.Builder
+	builder.Grow(len(raw))
+	lastDash := false
+	for _, r := range raw {
+		isLetter := r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z'
+		isDigit := r >= '0' && r <= '9'
+		if isLetter || isDigit {
+			builder.WriteRune(r)
+			lastDash = false
+			continue
+		}
+		if !lastDash {
+			builder.WriteByte('-')
+			lastDash = true
+		}
+	}
+	id := strings.Trim(builder.String(), "-")
+	if id == "" {
+		return "section"
+	}
+	return id
+}
+
 // HasStructFields returns true if val contains at least one struct-typed field.
 func HasStructFields(val cue.Value) bool {
 	iter, err := val.Fields(cue.Optional(true))
@@ -105,10 +138,12 @@ func HasStructFields(val cue.Value) bool {
 // constraints; display hints are taken from sectionHints and per-field UI_ comments.
 func ParseSection(name string, val cue.Value, pathPrefix string, sectionHints UIHints) Section {
 	section := Section{
-		Name:    name,
-		Label:   sectionHints.Label,
-		Help:    sectionHints.Help,
-		Columns: sectionHints.Columns,
+		ID:         buildSectionID(name, pathPrefix),
+		Name:       name,
+		Label:      sectionHints.Label,
+		Help:       sectionHints.Help,
+		Columns:    sectionHints.Columns,
+		Navigation: sectionHints.Navigation,
 	}
 	if section.Label == "" {
 		section.Label = TitleCase(name)
@@ -261,10 +296,13 @@ func BuildFormData(rootValue cue.Value) (FormData, error) {
 		hints := ParseUIHints(roots[0].val)
 		top := ParseSection(roots[0].name, roots[0].val, "", hints)
 		formData.Title = top.Label
+		formData.ID = top.ID
+		formData.Navigation = top.Navigation
 		formData.Sections = top.Sections
 		// If the root also has direct scalar fields, show them in a "General" section.
 		if len(top.Fields) > 0 {
 			general := Section{
+				ID:      top.ID + "-general",
 				Name:    top.Name,
 				Label:   "General",
 				Columns: top.Columns,
@@ -274,6 +312,7 @@ func BuildFormData(rootValue cue.Value) (FormData, error) {
 		}
 	} else {
 		formData.Title = "Configuration"
+		formData.ID = "configuration"
 		for _, r := range roots {
 			hints := ParseUIHints(r.val)
 			s := ParseSection(r.name, r.val, "", hints)

@@ -20,15 +20,17 @@ import (
 //	UI_Order:       Display order within section (integer, lower first)
 //	UI_Columns:     Grid columns for a section (default: 2)
 //	UI_Colspan:     Number of grid columns a field spans
+//	UI_Navigation:  Child section layout mode (currently: tabs)
 type UIHints struct {
-	Label    string
-	Help     string
-	Widget   string
-	Hidden   bool
-	Readonly bool
-	Order    int
-	Columns  int
-	Colspan  int
+	Label      string
+	Help       string
+	Widget     string
+	Hidden     bool
+	Readonly   bool
+	Order      int
+	Columns    int
+	Colspan    int
+	Navigation string
 }
 
 // ParseUIHints extracts UI_ directives from a CUE value's doc comments.
@@ -72,6 +74,8 @@ func ParseUIHints(val cue.Value) UIHints {
 				if n, err := strconv.Atoi(value); err == nil {
 					hints.Colspan = n
 				}
+			case "UI_Navigation":
+				hints.Navigation = value
 			}
 		}
 	}

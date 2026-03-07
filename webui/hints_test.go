@@ -18,6 +18,7 @@ func TestParseUIHints_AllDirectives(t *testing.T) {
 // UI_Order: 3
 // UI_Columns: 4
 // UI_Colspan: 2
+// UI_Navigation: tabs
 field: string
 `
 	ctx := cuecontext.New()
@@ -34,6 +35,7 @@ field: string
 	require.Equal(t, 3, h.Order)
 	require.Equal(t, 4, h.Columns)
 	require.Equal(t, 2, h.Colspan)
+	require.Equal(t, "tabs", h.Navigation)
 }
 
 func TestParseUIHints_Defaults(t *testing.T) {
@@ -51,6 +53,7 @@ field: string
 	require.Equal(t, 999, h.Order)
 	require.False(t, h.Hidden)
 	require.False(t, h.Readonly)
+	require.Empty(t, h.Navigation)
 }
 
 func TestParseUIHints_PartialDirectives(t *testing.T) {

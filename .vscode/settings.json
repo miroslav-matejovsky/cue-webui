@@ -56,5 +56,8 @@
     "miroslav",
     "tmpl",
     "webui"
-  ]
+  ],
+  "chat.tools.terminal.autoApprove": {
+    "go": true
+  }
 }
