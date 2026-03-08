@@ -4,9 +4,11 @@ import (
 	_ "embed"
 	"fmt"
 	"html/template"
+	"log"
 	"net/http"
+	"os"
 
-	"github.com/miroslav-matejovsky/cue-webui/internal/storage"
+	"cuelang.org/go/cue"
 	"github.com/miroslav-matejovsky/cue-webui/internal/webui/webform"
 )
 
@@ -27,14 +29,21 @@ func ParseFormTemplate() (*template.Template, error) {
 	return template.New("base").Parse(formTemplateStr)
 }
 
-// NewHandlerWithStorage returns an http.Handler that serves three endpoints:
-//   - GET  /                  — renders the HTML form for the given FormData.
+// formPageData is the view model passed to the "form" template.
+type formPageData struct {
+	webform.FormData
+	ErrorMessage string
+}
+
+// NewHandler returns an http.Handler that serves three endpoints:
+//   - GET  /                  — renders the HTML form populated from the JSON config file.
 //   - GET  /static/style.css  — serves the embedded CSS stylesheet.
-//   - POST /submit            — processes form submission and renders a results page.
+//   - POST /submit            — validates submitted values against the CUE schema,
+//     writes valid JSON to configPath, and redirects to /.
 //
-// Non-POST requests to /submit are redirected to /. Any other path returns 404.
-// The provided Store is used to hydrate the form on load and persist values on submit.
-func NewHandlerWithStorage(formData webform.FormData, store storage.Store) (http.Handler, error) {
+// If configPath does not exist, the form is rendered with schema defaults only.
+// If CUE validation fails on submit, the form is re-rendered with an error banner.
+func NewHandler(formData webform.FormData, cueSchema cue.Value, configPath string) (http.Handler, error) {
 	mux := http.NewServeMux()
 	tmpl, err := ParseFormTemplate()
 	if err != nil {
@@ -47,15 +56,17 @@ func NewHandlerWithStorage(formData webform.FormData, store storage.Store) (http
 			return
 		}
 
-		storedValues, err := store.LoadMap(r.Context())
-		if err != nil {
-			http.Error(w, "Failed to load configuration", http.StatusInternalServerError)
-			return
+		populated := formData
+		if data, err := os.ReadFile(configPath); err == nil {
+			if flat, err := nestedJSONToFlatMap(data); err == nil {
+				populated = applyStoredValues(formData, flat)
+			} else {
+				log.Printf("Warning: failed to parse config file %s: %v", configPath, err)
+			}
 		}
-		viewData := applyStoredValues(formData, storedValues)
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if err := tmpl.ExecuteTemplate(w, "form", viewData); err != nil {
+		if err := tmpl.ExecuteTemplate(w, "form", formPageData{FormData: populated}); err != nil {
 			http.Error(w, "Template error", http.StatusInternalServerError)
 		}
 	})
@@ -75,24 +86,46 @@ func NewHandlerWithStorage(formData webform.FormData, store storage.Store) (http
 			return
 		}
 
-		existingValues, err := store.LoadMap(r.Context())
+		// Load existing values from config file (if any)
+		existing := map[string]string{}
+		if data, err := os.ReadFile(configPath); err == nil {
+			if flat, err := nestedJSONToFlatMap(data); err == nil {
+				existing = flat
+			}
+		}
+
+		updatedValues := mergeSubmittedValues(formData, existing, r.PostForm)
+
+		// Convert to nested JSON
+		jsonBytes, err := flatMapToNestedJSON(updatedValues, formData)
 		if err != nil {
-			http.Error(w, "Failed to load configuration", http.StatusInternalServerError)
+			renderFormWithError(w, tmpl, formData, updatedValues, fmt.Sprintf("Failed to build JSON: %v", err))
 			return
 		}
 
-		updatedValues := mergeSubmittedValues(formData, existingValues, r.PostForm)
-		if err := store.SaveMap(r.Context(), updatedValues); err != nil {
-			http.Error(w, "Failed to save configuration", http.StatusInternalServerError)
+		// Validate against CUE schema
+		if err := validateJSONWithCUE(jsonBytes, cueSchema); err != nil {
+			renderFormWithError(w, tmpl, formData, updatedValues, fmt.Sprintf("Validation error: %v", err))
 			return
 		}
 
-		result := resultDataFromValues(formData.Title, updatedValues)
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if err := tmpl.ExecuteTemplate(w, "result", result); err != nil {
-			http.Error(w, "Template error", http.StatusInternalServerError)
+		// Write validated JSON to config file
+		if err := os.WriteFile(configPath, jsonBytes, 0644); err != nil {
+			renderFormWithError(w, tmpl, formData, updatedValues, fmt.Sprintf("Failed to save config: %v", err))
+			return
 		}
+
+		http.Redirect(w, r, "/", http.StatusSeeOther)
 	})
 
 	return mux, nil
+}
+
+func renderFormWithError(w http.ResponseWriter, tmpl *template.Template, formData webform.FormData, values map[string]string, errMsg string) {
+	populated := applyStoredValues(formData, values)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusUnprocessableEntity)
+	if err := tmpl.ExecuteTemplate(w, "form", formPageData{FormData: populated, ErrorMessage: errMsg}); err != nil {
+		http.Error(w, "Template error", http.StatusInternalServerError)
+	}
 }

@@ -1,47 +1,9 @@
 package main
 
 import (
-	"flag"
-	"log"
-	"net/http"
-	"os"
-
-	"cuelang.org/go/cue/cuecontext"
-	"github.com/miroslav-matejovsky/cue-webui/internal/storage"
-	"github.com/miroslav-matejovsky/cue-webui/internal/webui"
-	"github.com/miroslav-matejovsky/cue-webui/internal/webui/webform"
+	"github.com/miroslav-matejovsky/cue-webui/internal/app"
 )
 
 func main() {
-	addr := flag.String("addr", "localhost:8080", "address to listen on")
-	flag.Parse()
-
-	if flag.NArg() < 1 {
-		log.Fatal("Usage: cue-webui [flags] <schema.cue>\n  Flags:\n    -addr string  address to listen on (default \"localhost:8080\")")
-	}
-
-	schemaPath := flag.Arg(0)
-	schemaBytes, err := os.ReadFile(schemaPath)
-	if err != nil {
-		log.Fatalf("Failed to read schema file: %v", err)
-	}
-
-	ctx := cuecontext.New()
-	cueSchema := ctx.CompileString(string(schemaBytes))
-	if cueSchema.Err() != nil {
-		log.Fatalf("Failed to compile CUE schema: %v", cueSchema.Err())
-	}
-
-	formData, err := webform.BuildFormData(cueSchema)
-	if err != nil {
-		log.Fatalf("Failed to build form data: %v", err)
-	}
-
-	handler, err := webui.NewHandlerWithStorage(formData, storage.NewMock(nil))
-	if err != nil {
-		log.Fatalf("Failed to create handler: %v", err)
-	}
-
-	log.Printf("Serving on http://%s", *addr)
-	log.Fatal(http.ListenAndServe(*addr, handler))
+	app.Run()
 }

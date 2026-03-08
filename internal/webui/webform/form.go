@@ -55,19 +55,6 @@ type FormData struct {
 	Sections   []Section // Top-level sections rendered as fieldsets.
 }
 
-// KeyValue represents a submitted form value.
-type KeyValue struct {
-	Key   string
-	Value string
-}
-
-// ResultData is the view model passed to the "result" HTML template
-// after a form submission.
-type ResultData struct {
-	Title  string     // Page title carried over from FormData.
-	Values []KeyValue // Submitted key-value pairs, sorted alphabetically.
-}
-
 // CueTypeToInputType maps a CUE kind to an HTML input type.
 func CueTypeToInputType(kind cue.Kind) string {
 	switch kind {

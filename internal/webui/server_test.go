@@ -1,14 +1,18 @@
 package webui
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/miroslav-matejovsky/cue-webui/internal/storage"
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/miroslav-matejovsky/cue-webui/internal/webui/webform"
 	"github.com/stretchr/testify/require"
 )
@@ -33,6 +37,18 @@ func TestParseFormTemplate(t *testing.T) {
 	require.NotNil(t, tmpl)
 }
 
+// sampleCUESchema returns a compiled CUE value for a simple schema with server.host (string) and server.port (int).
+func sampleCUESchema() cue.Value {
+	ctx := cuecontext.New()
+	return ctx.CompileString(`{ server: { host: string, port: int & >=1 & <=65535 } }`)
+}
+
+// permissiveCUESchema returns a CUE value that accepts any structure (for tests that don't need validation).
+func permissiveCUESchema() cue.Value {
+	ctx := cuecontext.New()
+	return ctx.CompileString(`{...}`)
+}
+
 func sampleFormData() webform.FormData {
 	return webform.FormData{
 		Title: "Test Config",
@@ -42,23 +58,28 @@ func sampleFormData() webform.FormData {
 				Label:   "Server",
 				Columns: 2,
 				Fields: []webform.Field{
-					{Name: "host", Path: "server.host", Label: "Host", InputType: "text", Widget: "input"},
-					{Name: "port", Path: "server.port", Label: "Port", InputType: "number", Widget: "input", Min: "1", Max: "65535"},
+					{Name: "host", Path: "server.host", Type: "string", Label: "Host", InputType: "text", Widget: "input"},
+					{Name: "port", Path: "server.port", Type: "int", Label: "Port", InputType: "number", Widget: "input", Min: "1", Max: "65535"},
 				},
 			},
 		},
 	}
 }
 
-func mustNewHandlerWithStorage(t *testing.T, fd webform.FormData, store storage.Store) http.Handler {
+func mustNewHandler(t *testing.T, fd webform.FormData, schema cue.Value, configPath string) http.Handler {
 	t.Helper()
-	h, err := NewHandlerWithStorage(fd, store)
+	h, err := NewHandler(fd, schema, configPath)
 	require.NoError(t, err)
 	return h
 }
 
+func tempConfigPath(t *testing.T) string {
+	t.Helper()
+	return filepath.Join(t.TempDir(), "config.json")
+}
+
 func TestNewHandler_FormPage(t *testing.T) {
-	handler := mustNewHandlerWithStorage(t, sampleFormData(), storage.NewMock(nil))
+	handler := mustNewHandler(t, sampleFormData(), sampleCUESchema(), tempConfigPath(t))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -72,7 +93,7 @@ func TestNewHandler_FormPage(t *testing.T) {
 }
 
 func TestNewHandler_NotFound(t *testing.T) {
-	handler := mustNewHandlerWithStorage(t, sampleFormData(), storage.NewMock(nil))
+	handler := mustNewHandler(t, sampleFormData(), sampleCUESchema(), tempConfigPath(t))
 	req := httptest.NewRequest(http.MethodGet, "/nonexistent", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -81,7 +102,7 @@ func TestNewHandler_NotFound(t *testing.T) {
 }
 
 func TestNewHandler_CSS(t *testing.T) {
-	handler := mustNewHandlerWithStorage(t, sampleFormData(), storage.NewMock(nil))
+	handler := mustNewHandler(t, sampleFormData(), sampleCUESchema(), tempConfigPath(t))
 	req := httptest.NewRequest(http.MethodGet, "/static/style.css", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -92,7 +113,8 @@ func TestNewHandler_CSS(t *testing.T) {
 }
 
 func TestNewHandler_SubmitPost(t *testing.T) {
-	handler := mustNewHandlerWithStorage(t, sampleFormData(), storage.NewMock(nil))
+	configPath := tempConfigPath(t)
+	handler := mustNewHandler(t, sampleFormData(), sampleCUESchema(), configPath)
 	form := url.Values{}
 	form.Set("server.host", "localhost")
 	form.Set("server.port", "8080")
@@ -102,15 +124,21 @@ func TestNewHandler_SubmitPost(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusOK, rec.Code)
-	body := rec.Body.String()
-	require.Contains(t, body, "localhost", "result page missing submitted value 'localhost'")
-	require.Contains(t, body, "8080", "result page missing submitted value '8080'")
-	require.Contains(t, body, "server.host", "result page missing field key 'server.host'")
+	require.Equal(t, http.StatusSeeOther, rec.Code)
+	require.Equal(t, "/", rec.Header().Get("Location"))
+
+	// Verify JSON file was written
+	data, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+	var parsed map[string]any
+	require.NoError(t, json.Unmarshal(data, &parsed))
+	server := parsed["server"].(map[string]any)
+	require.Equal(t, "localhost", server["host"])
+	require.Equal(t, float64(8080), server["port"])
 }
 
 func TestNewHandler_SubmitGetRedirects(t *testing.T) {
-	handler := mustNewHandlerWithStorage(t, sampleFormData(), storage.NewMock(nil))
+	handler := mustNewHandler(t, sampleFormData(), sampleCUESchema(), tempConfigPath(t))
 	req := httptest.NewRequest(http.MethodGet, "/submit", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -125,11 +153,11 @@ func TestNewHandler_FormRenders_SelectWidget(t *testing.T) {
 		Sections: []webform.Section{{
 			Name: "net", Label: "Network", Columns: 2,
 			Fields: []webform.Field{
-				{Name: "protocol", Path: "protocol", Label: "Protocol", Widget: "select", Options: []string{"http", "https"}},
+				{Name: "protocol", Path: "protocol", Type: "string", Label: "Protocol", Widget: "select", Options: []string{"http", "https"}},
 			},
 		}},
 	}
-	handler := mustNewHandlerWithStorage(t, fd, storage.NewMock(nil))
+	handler := mustNewHandler(t, fd, permissiveCUESchema(), tempConfigPath(t))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -146,11 +174,11 @@ func TestNewHandler_FormRenders_CheckboxWidget(t *testing.T) {
 		Sections: []webform.Section{{
 			Name: "flags", Label: "Flags", Columns: 1,
 			Fields: []webform.Field{
-				{Name: "enabled", Path: "enabled", Label: "Enabled", Widget: "checkbox"},
+				{Name: "enabled", Path: "enabled", Type: "bool", Label: "Enabled", Widget: "checkbox"},
 			},
 		}},
 	}
-	handler := mustNewHandlerWithStorage(t, fd, storage.NewMock(nil))
+	handler := mustNewHandler(t, fd, permissiveCUESchema(), tempConfigPath(t))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -158,25 +186,23 @@ func TestNewHandler_FormRenders_CheckboxWidget(t *testing.T) {
 	require.Contains(t, rec.Body.String(), `type="checkbox"`, "response missing checkbox input")
 }
 
-func TestNewHandler_LoadsStoredValues(t *testing.T) {
+func TestNewHandler_LoadsValuesFromConfigFile(t *testing.T) {
 	fd := webform.FormData{
 		Title: "Stored Values Test",
 		Sections: []webform.Section{{
 			Name: "server", Label: "Server", Columns: 2,
 			Fields: []webform.Field{
-				{Name: "host", Path: "server.host", Label: "Host", Widget: "input", InputType: "text"},
-				{Name: "protocol", Path: "server.protocol", Label: "Protocol", Widget: "select", Options: []string{"http", "https"}},
-				{Name: "enabled", Path: "server.enabled", Label: "Enabled", Widget: "checkbox"},
+				{Name: "host", Path: "server.host", Type: "string", Label: "Host", Widget: "input", InputType: "text"},
+				{Name: "protocol", Path: "server.protocol", Type: "string", Label: "Protocol", Widget: "select", Options: []string{"http", "https"}},
+				{Name: "enabled", Path: "server.enabled", Type: "bool", Label: "Enabled", Widget: "checkbox"},
 			},
 		}},
 	}
-	store := storage.NewMock(map[string]string{
-		"server.host":     "stored.example",
-		"server.protocol": "https",
-		"server.enabled":  "true",
-	})
+	configPath := tempConfigPath(t)
+	configJSON := `{"server":{"host":"stored.example","protocol":"https","enabled":true}}`
+	require.NoError(t, os.WriteFile(configPath, []byte(configJSON), 0644))
 
-	handler := mustNewHandlerWithStorage(t, fd, store)
+	handler := mustNewHandler(t, fd, permissiveCUESchema(), configPath)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -193,11 +219,11 @@ func TestNewHandler_FormRenders_TextareaWidget(t *testing.T) {
 		Sections: []webform.Section{{
 			Name: "content", Label: "Content", Columns: 1,
 			Fields: []webform.Field{
-				{Name: "notes", Path: "notes", Label: "Notes", Widget: "textarea"},
+				{Name: "notes", Path: "notes", Type: "string", Label: "Notes", Widget: "textarea"},
 			},
 		}},
 	}
-	handler := mustNewHandlerWithStorage(t, fd, storage.NewMock(nil))
+	handler := mustNewHandler(t, fd, permissiveCUESchema(), tempConfigPath(t))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -211,11 +237,11 @@ func TestNewHandler_FormRenders_RadioWidget(t *testing.T) {
 		Sections: []webform.Section{{
 			Name: "level", Label: "Level", Columns: 1,
 			Fields: []webform.Field{
-				{Name: "log_level", Path: "log_level", Label: "Log Level", Widget: "radio", Options: []string{"debug", "info", "error"}},
+				{Name: "log_level", Path: "log_level", Type: "string", Label: "Log Level", Widget: "radio", Options: []string{"debug", "info", "error"}},
 			},
 		}},
 	}
-	handler := mustNewHandlerWithStorage(t, fd, storage.NewMock(nil))
+	handler := mustNewHandler(t, fd, permissiveCUESchema(), tempConfigPath(t))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -233,12 +259,12 @@ func TestNewHandler_FormRenders_HiddenField(t *testing.T) {
 		Sections: []webform.Section{{
 			Name: "misc", Label: "Misc", Columns: 1,
 			Fields: []webform.Field{
-				{Name: "secret", Path: "secret", Label: "Secret", Widget: "input", Hidden: true},
-				{Name: "visible", Path: "visible", Label: "Visible", Widget: "input"},
+				{Name: "secret", Path: "secret", Type: "string", Label: "Secret", Widget: "input", Hidden: true},
+				{Name: "visible", Path: "visible", Type: "string", Label: "Visible", Widget: "input"},
 			},
 		}},
 	}
-	handler := mustNewHandlerWithStorage(t, fd, storage.NewMock(nil))
+	handler := mustNewHandler(t, fd, permissiveCUESchema(), tempConfigPath(t))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -248,42 +274,25 @@ func TestNewHandler_FormRenders_HiddenField(t *testing.T) {
 	require.Contains(t, body, `name="visible"`, "visible field should be rendered")
 }
 
-func TestNewHandler_SubmitResultSorted(t *testing.T) {
-	handler := mustNewHandlerWithStorage(t, sampleFormData(), storage.NewMock(nil))
-	form := url.Values{}
-	form.Set("z_field", "last")
-	form.Set("a_field", "first")
-
-	req := httptest.NewRequest(http.MethodPost, "/submit", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	body := rec.Body.String()
-	aIdx := strings.Index(body, "a_field")
-	zIdx := strings.Index(body, "z_field")
-	require.NotEqual(t, -1, aIdx, "result page missing 'a_field'")
-	require.NotEqual(t, -1, zIdx, "result page missing 'z_field'")
-	require.Less(t, aIdx, zIdx, "result fields not sorted alphabetically")
-}
-
-func TestNewHandler_SubmitPostSavesToStorage(t *testing.T) {
+func TestNewHandler_SubmitSavesToConfigFile(t *testing.T) {
 	fd := webform.FormData{
 		Title: "Persist Test",
 		Sections: []webform.Section{{
 			Name: "server", Label: "Server", Columns: 2,
 			Fields: []webform.Field{
-				{Name: "host", Path: "server.host", Label: "Host", Widget: "input", InputType: "text"},
-				{Name: "enabled", Path: "server.enabled", Label: "Enabled", Widget: "checkbox"},
-				{Name: "protocol", Path: "server.protocol", Label: "Protocol", Widget: "select", Options: []string{"http", "https"}, Readonly: true},
+				{Name: "host", Path: "server.host", Type: "string", Label: "Host", Widget: "input", InputType: "text"},
+				{Name: "enabled", Path: "server.enabled", Type: "bool", Label: "Enabled", Widget: "checkbox"},
+				{Name: "protocol", Path: "server.protocol", Type: "string", Label: "Protocol", Widget: "select", Options: []string{"http", "https"}, Readonly: true},
 			},
 		}},
 	}
-	store := storage.NewMock(map[string]string{
-		"server.enabled":  "true",
-		"server.protocol": "https",
-	})
-	handler := mustNewHandlerWithStorage(t, fd, store)
+	configPath := tempConfigPath(t)
+	// Pre-populate config file with existing values
+	initialJSON := `{"server":{"enabled":true,"protocol":"https"}}`
+	require.NoError(t, os.WriteFile(configPath, []byte(initialJSON), 0644))
+
+	schema := permissiveCUESchema()
+	handler := mustNewHandler(t, fd, schema, configPath)
 
 	form := url.Values{}
 	form.Set("server.host", "api.internal")
@@ -293,15 +302,48 @@ func TestNewHandler_SubmitPostSavesToStorage(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, map[string]string{
-		"server.enabled":  "false",
-		"server.host":     "api.internal",
-		"server.protocol": "https",
-	}, store.Snapshot())
-	require.Contains(t, rec.Body.String(), "api.internal")
-	require.Contains(t, rec.Body.String(), "false")
-	require.Contains(t, rec.Body.String(), "https")
+	require.Equal(t, http.StatusSeeOther, rec.Code)
+
+	// Verify JSON file content
+	data, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+	var parsed map[string]any
+	require.NoError(t, json.Unmarshal(data, &parsed))
+	server := parsed["server"].(map[string]any)
+	require.Equal(t, "api.internal", server["host"])
+	require.Equal(t, false, server["enabled"])
+	require.Equal(t, "https", server["protocol"])
+}
+
+func TestNewHandler_SubmitValidationError(t *testing.T) {
+	fd := webform.FormData{
+		Title: "Validation Test",
+		Sections: []webform.Section{{
+			Name: "server", Label: "Server", Columns: 2,
+			Fields: []webform.Field{
+				{Name: "host", Path: "server.host", Type: "string", Label: "Host", Widget: "input", InputType: "text"},
+				{Name: "port", Path: "server.port", Type: "int", Label: "Port", Widget: "input", InputType: "number"},
+			},
+		}},
+	}
+	schema := sampleCUESchema()
+	handler := mustNewHandler(t, fd, schema, tempConfigPath(t))
+
+	form := url.Values{}
+	form.Set("server.host", "localhost")
+	form.Set("server.port", "99999") // exceeds <=65535
+
+	req := httptest.NewRequest(http.MethodPost, "/submit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+	body := rec.Body.String()
+	require.Contains(t, body, "error-banner", "response missing error banner")
+	require.Contains(t, body, "Validation error", "response missing validation error message")
+	// Form should be re-rendered with submitted values
+	require.Contains(t, body, `value="localhost"`, "response missing submitted host value")
 }
 
 func TestNewHandler_FormRenders_NestedSections(t *testing.T) {
@@ -312,12 +354,12 @@ func TestNewHandler_FormRenders_NestedSections(t *testing.T) {
 			Sections: []webform.Section{{
 				Name: "inner", Label: "Inner", Columns: 1,
 				Fields: []webform.Field{
-					{Name: "val", Path: "outer.inner.val", Label: "Val", Widget: "input", InputType: "text"},
+					{Name: "val", Path: "outer.inner.val", Type: "string", Label: "Val", Widget: "input", InputType: "text"},
 				},
 			}},
 		}},
 	}
-	handler := mustNewHandlerWithStorage(t, fd, storage.NewMock(nil))
+	handler := mustNewHandler(t, fd, permissiveCUESchema(), tempConfigPath(t))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -340,7 +382,7 @@ func TestNewHandler_FormRenders_TabNavigation(t *testing.T) {
 				Label:   "Network",
 				Columns: 2,
 				Fields: []webform.Field{
-					{Name: "host", Path: "network.host", Label: "Host", Widget: "input", InputType: "text"},
+					{Name: "host", Path: "network.host", Type: "string", Label: "Host", Widget: "input", InputType: "text"},
 				},
 			},
 			{
@@ -349,12 +391,12 @@ func TestNewHandler_FormRenders_TabNavigation(t *testing.T) {
 				Label:   "Logging",
 				Columns: 1,
 				Fields: []webform.Field{
-					{Name: "level", Path: "logging.level", Label: "Level", Widget: "select", Options: []string{"debug", "info"}},
+					{Name: "level", Path: "logging.level", Type: "string", Label: "Level", Widget: "select", Options: []string{"debug", "info"}},
 				},
 			},
 		},
 	}
-	handler := mustNewHandlerWithStorage(t, fd, storage.NewMock(nil))
+	handler := mustNewHandler(t, fd, permissiveCUESchema(), tempConfigPath(t))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -369,11 +411,24 @@ func TestNewHandler_FormRenders_TabNavigation(t *testing.T) {
 }
 
 func TestNewHandler_CSSContent(t *testing.T) {
-	handler := mustNewHandlerWithStorage(t, sampleFormData(), storage.NewMock(nil))
+	handler := mustNewHandler(t, sampleFormData(), sampleCUESchema(), tempConfigPath(t))
 	req := httptest.NewRequest(http.MethodGet, "/static/style.css", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
 	body, _ := io.ReadAll(rec.Result().Body)
 	require.Equal(t, StyleCSS(), string(body), "served CSS does not match embedded CSS")
+}
+
+func TestNewHandler_NoConfigFileRendersDefaults(t *testing.T) {
+	fd := sampleFormData()
+	fd.Sections[0].Fields[0].Default = "default-host"
+
+	handler := mustNewHandler(t, fd, sampleCUESchema(), tempConfigPath(t))
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `value="default-host"`, "response missing default value")
 }
