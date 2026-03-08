@@ -30,16 +30,6 @@ go run ./cmd -addr 0.0.0.0:9090 myschema.cue config.json
 
 Open [http://localhost:8080](http://localhost:8080) to see the generated form.
 
-Try the bundled example schemas:
-
-```bash
-go run ./cmd examples/basic/schema.cue examples/basic/config.json
-go run ./cmd examples/nested-tabs/schema.cue examples/nested-tabs/config.json
-go run ./cmd examples/platform-stack/schema.cue examples/platform-stack/config.json
-```
-
-See [examples/README.md](examples/README.md) for the catalog.
-
 ## Library Usage
 
 If you want to embed your own schema in an application, the flow is:
@@ -50,12 +40,12 @@ If you want to embed your own schema in an application, the flow is:
 
 The handler exposes the following HTTP endpoints:
 
-| Endpoint              | Method | Description                                                  |
-| --------------------- | ------ | ------------------------------------------------------------ |
-| `/`                   | GET    | HTML form pre-populated with values from `configPath`        |
-| `/static/style.css`   | GET    | Embedded CSS stylesheet                                      |
-| `/schema.json`        | GET    | JSON Schema (Draft 2020-12) generated from the CUE schema    |
-| `/submit`             | POST   | Validates form values, writes JSON to `configPath`, redirects |
+| Endpoint            | Method | Description                                                   |
+| ------------------- | ------ | ------------------------------------------------------------- |
+| `/`                 | GET    | HTML form pre-populated with values from `configPath`         |
+| `/static/style.css` | GET    | Embedded CSS stylesheet                                       |
+| `/schema.json`      | GET    | JSON Schema (Draft 2020-12) generated from the CUE schema     |
+| `/submit`           | POST   | Validates form values, writes JSON to `configPath`, redirects |
 
 ## Schema Example
 
@@ -157,11 +147,15 @@ internal/
 
 ## Examples
 
-`examples/basic/schema.cue` is the original simple demo. Run it with `go run ./cmd examples/basic/schema.cue config.json`.
+```bash
+go run ./cmd examples/basic/schema.cue examples/basic/config.json
+go run ./cmd examples/nested-tabs/schema.cue examples/nested-tabs/config.json
+go run ./cmd examples/platform-stack/schema.cue examples/platform-stack/config.json
+```
 
-`examples/nested-tabs/schema.cue` shows deeply nested configuration with repeated `UI_Navigation: tabs` hints.
-
-`examples/platform-stack/schema.cue` shows a larger operations-style schema with regex validation, defaults, readonly fields, hidden fields, radios, textarea overrides, and multi-column sections.
+- **basic** — original simple demo.
+- **nested-tabs** — deeply nested configuration with repeated `UI_Navigation: tabs` hints.
+- **platform-stack** — larger operations-style schema with regex validation, defaults, readonly fields, hidden fields, radios, textarea overrides, and multi-column sections.
 
 ## Running Tests
 
