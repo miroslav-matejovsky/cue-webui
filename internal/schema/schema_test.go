@@ -51,3 +51,18 @@ func TestRootValue_MultipleRootDefs_ReturnsTopLevel(t *testing.T) {
 	require.Contains(t, defs, "#A")
 	require.Contains(t, defs, "#B")
 }
+
+func TestRootValue_UIRootHint_ReturnsNamedDef(t *testing.T) {
+	ctx := cuecontext.New()
+	v := ctx.CompileString("#Connection: { database: { host: string } }\n// UI_Root: true\n#Config: { conn: #Connection }\n")
+	got := schema.RootValue(v)
+	require.Nil(t, got.Err())
+	iter, err := got.Fields(cue.Optional(true))
+	require.NoError(t, err)
+	var fields []string
+	for iter.Next() {
+		fields = append(fields, iter.Label())
+	}
+	require.Contains(t, fields, "conn")
+	require.NotContains(t, fields, "database", "should not contain fields from #Connection directly")
+}

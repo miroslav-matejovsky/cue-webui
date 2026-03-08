@@ -333,6 +333,55 @@ func TestBuildFormData_NoDefs(t *testing.T) {
 	require.Error(t, err, "BuildFormData should return error when no definitions found")
 }
 
+func TestBuildFormData_UIRootHint(t *testing.T) {
+	// #Connection has struct sub-fields AND is referenced by #Config.
+	// Without UI_Root, both would be treated as roots → #Connection rendered twice.
+	// The UI_Root: true hint on #Config tells BuildFormData to use it as the sole root.
+	src := `
+#Connection: {
+	database: {
+		host: string
+		port: int
+	}
+}
+// UI_Root: true
+#Config: {
+	conn: #Connection
+}
+`
+	ctx := cuecontext.New()
+	val := ctx.CompileString(src)
+	require.NoError(t, val.Err())
+
+	fd, err := BuildFormData(val)
+	require.NoError(t, err)
+
+	// Only #Config should be the root; #Connection should NOT appear as a top-level section.
+	require.Equal(t, "Config", fd.Title)
+	require.Len(t, fd.Sections, 1, "only 'conn' subsection should appear")
+	require.Equal(t, "conn", fd.Sections[0].Name)
+}
+
+func TestBuildFormData_NoUIRoot_AutoDetects(t *testing.T) {
+	// Without UI_Root hint, auto-detection should apply (same as before).
+	src := `
+// UI_Label: My App
+#Config: {
+	db: {
+		host: string
+	}
+}
+`
+	ctx := cuecontext.New()
+	val := ctx.CompileString(src)
+	require.NoError(t, val.Err())
+
+	fd, err := BuildFormData(val)
+	require.NoError(t, err)
+	require.Equal(t, "My App", fd.Title)
+	require.Len(t, fd.Sections, 1)
+}
+
 // findField returns a pointer to the Field with the given name, or nil.
 func findField(fields []Field, name string) *Field {
 	for i := range fields {

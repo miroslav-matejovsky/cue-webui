@@ -233,9 +233,29 @@ func ParseSection(name string, val cue.Value, pathPrefix string, sectionHints UI
 	return section
 }
 
+// FindRootDef scans definitions in a CUE schema for the UI_Root: true hint
+// and returns the name (without "#") of the marked definition. If no definition
+// is marked, it returns an empty string.
+func FindRootDef(cueSchema cue.Value) string {
+	iter, err := cueSchema.Fields(cue.Definitions(true))
+	if err != nil {
+		return ""
+	}
+	for iter.Next() {
+		hints := ParseUIHints(iter.Value())
+		if hints.Root {
+			return strings.TrimPrefix(iter.Selector().String(), "#")
+		}
+	}
+	return ""
+}
+
 // BuildFormData constructs a FormData from a compiled CUE schema value.
 // It discovers all top-level CUE definitions (#Name) and identifies "root"
 // definitions — those containing struct sub-fields that aggregate other definitions.
+//
+// If a definition carries a UI_Root: true hint, only that definition is used
+// as the root, avoiding duplicate rendering of referenced definitions.
 //
 // When a single root is found it is unwrapped: its label becomes the page title
 // and its struct fields become top-level sections. Any direct scalar fields on
@@ -264,6 +284,34 @@ func BuildFormData(cueSchema cue.Value) (FormData, error) {
 	}
 	if len(allDefs) == 0 {
 		return FormData{}, errors.New("no CUE definitions found in schema")
+	}
+
+	// Check for explicit UI_Root: true hint.
+	rootDef := FindRootDef(cueSchema)
+	if rootDef != "" {
+		for _, d := range allDefs {
+			if d.name == rootDef {
+				hints := ParseUIHints(d.val)
+				top := ParseSection(d.name, d.val, "", hints)
+				fd := FormData{
+					Title:      top.Label,
+					ID:         top.ID,
+					Navigation: top.Navigation,
+					Sections:   top.Sections,
+				}
+				if len(top.Fields) > 0 {
+					general := Section{
+						ID:      top.ID + "-general",
+						Name:    top.Name,
+						Label:   "General",
+						Columns: top.Columns,
+						Fields:  top.Fields,
+					}
+					fd.Sections = append([]Section{general}, fd.Sections...)
+				}
+				return fd, nil
+			}
+		}
 	}
 
 	// Root definitions are those with struct sub-fields (they aggregate others).

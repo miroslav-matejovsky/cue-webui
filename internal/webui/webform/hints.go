@@ -21,12 +21,14 @@ import (
 //	UI_Columns:     Grid columns for a section (default: 2)
 //	UI_Colspan:     Number of grid columns a field spans
 //	UI_Navigation:  Child section layout mode (currently: tabs)
+//	UI_Root:        Mark a definition as the root entry point (true/false)
 type UIHints struct {
 	Label      string
 	Help       string
 	Widget     string
 	Hidden     bool
 	Readonly   bool
+	Root       bool
 	Order      int
 	Columns    int
 	Colspan    int
@@ -76,6 +78,8 @@ func ParseUIHints(val cue.Value) UIHints {
 				}
 			case "UI_Navigation":
 				hints.Navigation = value
+			case "UI_Root":
+				hints.Root = value == "true"
 			}
 		}
 	}

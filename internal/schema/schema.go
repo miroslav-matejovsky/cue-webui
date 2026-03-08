@@ -10,11 +10,13 @@ import (
 // RootValue returns the cue.Value that should be passed to jsonschema.Generate
 // to produce a meaningful JSON Schema for the given CUE schema.
 //
-// When the schema contains CUE definitions (#Name), the function finds the
-// single "root" definition using the same heuristic as BuildFormData (the
-// definition that contains struct sub-fields). If multiple roots exist the
-// whole schema value is returned so all definitions appear in $defs. If no
-// definitions are found the schema value itself is returned unchanged.
+// If a definition carries a UI_Root: true hint, that definition is returned.
+//
+// Otherwise, the function finds the single "root" definition using the same
+// heuristic as BuildFormData (the definition that contains struct sub-fields).
+// If multiple roots exist the whole schema value is returned so all definitions
+// appear in $defs. If no definitions are found the schema value itself is
+// returned unchanged.
 func RootValue(cueSchema cue.Value) cue.Value {
 	iter, err := cueSchema.Fields(cue.Definitions(true))
 	if err != nil {
@@ -31,6 +33,16 @@ func RootValue(cueSchema cue.Value) cue.Value {
 	}
 	if len(allDefs) == 0 {
 		return cueSchema
+	}
+
+	// Check for explicit UI_Root: true hint.
+	if rootDef := webform.FindRootDef(cueSchema); rootDef != "" {
+		sel := cue.Def("#" + rootDef)
+		for _, d := range allDefs {
+			if d.sel == sel {
+				return cueSchema.LookupPath(cue.MakePath(d.sel))
+			}
+		}
 	}
 
 	var roots []defEntry
