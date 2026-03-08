@@ -18,13 +18,13 @@ The module root is library-focused. Example CUE schemas live under `examples/` a
 Point the `cmd` binary at any CUE schema file to get an instant web form:
 
 ```bash
-go run ./cmd <schema.cue>
+go run ./cmd <schema.cue> <config.json>
 ```
 
 An optional `-addr` flag sets the listen address (default `localhost:8080`):
 
 ```bash
-go run ./cmd -addr 0.0.0.0:9090 myschema.cue
+go run ./cmd -addr 0.0.0.0:9090 myschema.cue config.json
 ```
 
 Open [http://localhost:8080](http://localhost:8080) to see the generated form.
@@ -32,9 +32,9 @@ Open [http://localhost:8080](http://localhost:8080) to see the generated form.
 Try the bundled example schemas:
 
 ```bash
-go run ./cmd examples/basic/schema.cue
-go run ./cmd examples/nested-tabs/schema.cue
-go run ./cmd examples/platform-stack/schema.cue
+go run ./cmd examples/basic/schema.cue config.json
+go run ./cmd examples/nested-tabs/schema.cue config.json
+go run ./cmd examples/platform-stack/schema.cue config.json
 ```
 
 See [examples/README.md](examples/README.md) for the catalog.
@@ -44,9 +44,8 @@ See [examples/README.md](examples/README.md) for the catalog.
 If you want to embed your own schema in an application, the flow is:
 
 1. Compile the CUE schema with `cuecontext.New().CompileString(...)`.
-2. Convert it to `webui.FormData` with `webui.BuildFormData(...)`.
-3. Provide a storage backend that implements `storage.Store`.
-4. Serve the generated handler from `webui.NewHandlerWithStorage(...)`.
+2. Convert it to `webform.FormData` with `webform.BuildFormData(...)`.
+3. Serve the generated handler from `webui.NewHandler(formData, cueSchema, configPath)`.
 
 ## Schema Example
 
@@ -124,28 +123,31 @@ Use `UI_Navigation: tabs` on any struct or definition that contains sub-sections
 
 ```text
 cmd/
-  main.go            # Standalone binary: serve a form for any CUE schema file
-examples/            # Example CUE schemas
-  basic/             # Original starter example
-  nested-tabs/       # Deeply nested tabbed configuration example
-  platform-stack/    # Denser real-world deployment schema example
-webui/
-  hints.go           # UI hint parsing and CUE constraint extraction
-  form.go            # Form/section/field builder from CUE values
-  server.go          # HTTP handler (form page, CSS, submit endpoint)
-  values.go          # Stored value hydration and submission merging helpers
-  templates/
-    form.html        # Go HTML template (form + result views)
-  static/
-    style.css        # Embedded stylesheet
-storage/
-  storage.go         # Storage interface for loading and saving form values
-  mock.go            # In-memory mock storage implementation
+  main.go                    # Standalone binary entry point
+examples/                    # Example CUE schemas
+  basic/                     # Original starter example
+  nested-tabs/               # Deeply nested tabbed configuration example
+  platform-stack/            # Denser real-world deployment schema example
+internal/
+  app/
+    main.go                  # CLI flag parsing and server startup
+  config/
+    config.go                # Load/save flat key-value maps to/from JSON; CUE validation
+  webui/
+    server.go                # HTTP handler (form page, CSS, submit endpoint)
+    values.go                # Stored value hydration and submission merging helpers
+    templates/
+      form.html              # Go HTML template (form + result views)
+    static/
+      style.css              # Embedded stylesheet
+    webform/
+      form.go                # Form/section/field builder from CUE values
+      hints.go               # UI hint parsing and CUE constraint extraction
 ```
 
 ## Examples
 
-`examples/basic/schema.cue` is the original simple demo. Run it with `go run ./cmd examples/basic/schema.cue`.
+`examples/basic/schema.cue` is the original simple demo. Run it with `go run ./cmd examples/basic/schema.cue config.json`.
 
 `examples/nested-tabs/schema.cue` shows deeply nested configuration with repeated `UI_Navigation: tabs` hints.
 
