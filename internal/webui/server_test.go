@@ -13,6 +13,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+	"github.com/miroslav-matejovsky/cue-webui/internal/watcher"
 	"github.com/miroslav-matejovsky/cue-webui/internal/webui/webform"
 	"github.com/stretchr/testify/require"
 )
@@ -73,9 +74,9 @@ func sampleFormData() webform.FormData {
 	}
 }
 
-func mustNewHandler(t *testing.T, fd webform.FormData, schema cue.Value, configPath string) http.Handler {
+func mustNewHandler(t *testing.T, fd webform.FormData, schema cue.Value, configPath string, opts ...Option) http.Handler {
 	t.Helper()
-	h, err := NewHandler(fd, schema, configPath)
+	h, err := NewHandler(fd, schema, configPath, opts...)
 	require.NoError(t, err)
 	return h
 }
@@ -559,4 +560,76 @@ func TestNewHandler_SchemaJSON_DefinitionSchema_ContainsDefs(t *testing.T) {
 		}
 	}
 	require.True(t, found, "$defs must contain a 'Connection' entry for the nested definition")
+}
+
+func TestNewHandler_LiveReload_InjectsScript(t *testing.T) {
+	fd := sampleFormData()
+	schema := sampleCUESchema()
+
+	dir := t.TempDir()
+	schemaPath := filepath.Join(dir, "schema.cue")
+	require.NoError(t, os.WriteFile(schemaPath, []byte(`{ server: { host: string, port: int & >=1 & <=65535 } }`), 0644))
+
+	w, err := watcher.New(schemaPath, fd, schema)
+	require.NoError(t, err)
+	defer w.Close()
+
+	handler := mustNewHandler(t, fd, schema, tempConfigPath(t), WithWatcher(w))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	require.Contains(t, body, "EventSource", "live reload should inject EventSource script")
+	require.Contains(t, body, "/events", "live reload script should connect to /events")
+}
+
+func TestNewHandler_NoLiveReload_NoScript(t *testing.T) {
+	handler := mustNewHandler(t, sampleFormData(), sampleCUESchema(), tempConfigPath(t))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.NotContains(t, rec.Body.String(), "EventSource", "without live reload, no EventSource script should be present")
+}
+
+func TestNewHandler_EventsEndpoint_SSE(t *testing.T) {
+	fd := sampleFormData()
+	schema := sampleCUESchema()
+
+	dir := t.TempDir()
+	schemaPath := filepath.Join(dir, "schema.cue")
+	require.NoError(t, os.WriteFile(schemaPath, []byte(`{ server: { host: string, port: int & >=1 & <=65535 } }`), 0644))
+
+	w, err := watcher.New(schemaPath, fd, schema)
+	require.NoError(t, err)
+	defer w.Close()
+
+	handler := mustNewHandler(t, fd, schema, tempConfigPath(t), WithWatcher(w))
+
+	// Start server
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	// Connect to SSE endpoint
+	resp, err := http.Get(srv.URL + "/events")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
+}
+
+func TestNewHandler_NoEvents_WithoutWatcher(t *testing.T) {
+	handler := mustNewHandler(t, sampleFormData(), sampleCUESchema(), tempConfigPath(t))
+
+	req := httptest.NewRequest(http.MethodGet, "/events", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	// Without watcher, /events is not registered, so "/" handler catches it as 404
+	require.Equal(t, http.StatusNotFound, rec.Code)
 }
