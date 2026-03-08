@@ -348,3 +348,15 @@ legend {
 .result-table tr:last-child td {
   border-bottom: none;
 }
+
+/* --- Error banner --- */
+.error-banner {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}

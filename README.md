@@ -2,7 +2,7 @@
 
 Automatically generates an HTML form UI from a [CUE](https://cuelang.org/) schema. Define your configuration as CUE definitions with optional UI hints in doc comments, and get a fully functional web form with validation, sections, and multiple widget types.
 
-The module root is now library-focused. Runnable demos live under `examples/`.
+The module root is library-focused. Example CUE schemas live under `examples/` and can be served with `go run ./cmd <schema.cue>`.
 
 ## Features
 
@@ -15,19 +15,26 @@ The module root is now library-focused. Runnable demos live under `examples/`.
 
 ## Quick Start
 
-Run one of the embedded examples:
+Point the `cmd` binary at any CUE schema file to get an instant web form:
 
 ```bash
-go run ./examples/basic
+go run ./cmd <schema.cue> <config.json>
+```
+
+An optional `-addr` flag sets the listen address (default `localhost:8080`):
+
+```bash
+go run ./cmd -addr 0.0.0.0:9090 myschema.cue config.json
 ```
 
 Open [http://localhost:8080](http://localhost:8080) to see the generated form.
 
-More examples are available:
+Try the bundled example schemas:
 
 ```bash
-go run ./examples/nested-tabs
-go run ./examples/platform-stack
+go run ./cmd examples/basic/schema.cue examples/basic/config.json
+go run ./cmd examples/nested-tabs/schema.cue examples/nested-tabs/config.json
+go run ./cmd examples/platform-stack/schema.cue examples/platform-stack/config.json
 ```
 
 See [examples/README.md](examples/README.md) for the catalog.
@@ -37,8 +44,8 @@ See [examples/README.md](examples/README.md) for the catalog.
 If you want to embed your own schema in an application, the flow is:
 
 1. Compile the CUE schema with `cuecontext.New().CompileString(...)`.
-2. Convert it to `webui.FormData` with `webui.BuildFormData(...)`.
-3. Serve the generated handler from `webui.NewHandler(...)`.
+2. Convert it to `webform.FormData` with `webform.BuildFormData(...)`.
+3. Serve the generated handler from `webui.NewHandler(formData, cueSchema, configPath)`.
 
 ## Schema Example
 
@@ -115,27 +122,36 @@ Use `UI_Navigation: tabs` on any struct or definition that contains sub-sections
 ## Project Structure
 
 ```text
-examples/            # Runnable demo applications with embedded schemas
-  basic/             # Original starter example
-  nested-tabs/       # Deeply nested tabbed configuration example
-  platform-stack/    # Denser real-world deployment schema example
-webui/
-  hints.go           # UI hint parsing and CUE constraint extraction
-  form.go            # Form/section/field builder from CUE values
-  server.go          # HTTP handler (form page, CSS, submit endpoint)
-  templates/
-    form.html        # Go HTML template (form + result views)
-  static/
-    style.css        # Embedded stylesheet
+cmd/
+  main.go                    # Standalone binary entry point
+examples/                    # Example CUE schemas
+  basic/                     # Original starter example
+  nested-tabs/               # Deeply nested tabbed configuration example
+  platform-stack/            # Denser real-world deployment schema example
+internal/
+  app/
+    main.go                  # CLI flag parsing and server startup
+  config/
+    config.go                # Load/save flat key-value maps to/from JSON; CUE validation
+  webui/
+    server.go                # HTTP handler (form page, CSS, submit endpoint)
+    values.go                # Stored value hydration and submission merging helpers
+    templates/
+      form.html              # Go HTML template (form + result views)
+    static/
+      style.css              # Embedded stylesheet
+    webform/
+      form.go                # Form/section/field builder from CUE values
+      hints.go               # UI hint parsing and CUE constraint extraction
 ```
 
 ## Examples
 
-`examples/basic` is the original simple demo moved out of the repository root.
+`examples/basic/schema.cue` is the original simple demo. Run it with `go run ./cmd examples/basic/schema.cue config.json`.
 
-`examples/nested-tabs` shows deeply nested configuration with repeated `UI_Navigation: tabs` hints so you can exercise the CSS-only tabbed UI.
+`examples/nested-tabs/schema.cue` shows deeply nested configuration with repeated `UI_Navigation: tabs` hints.
 
-`examples/platform-stack` shows a larger operations-style schema with regex validation, defaults, readonly fields, hidden fields, radios, textarea overrides, and multi-column sections.
+`examples/platform-stack/schema.cue` shows a larger operations-style schema with regex validation, defaults, readonly fields, hidden fields, radios, textarea overrides, and multi-column sections.
 
 ## Running Tests
 

@@ -1,7 +1,8 @@
-package webui
+package webform
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -52,19 +53,6 @@ type FormData struct {
 	ID         string    // Stable HTML-safe identifier for top-level tab groups.
 	Navigation string    // Top-level section layout mode (e.g. "tabs").
 	Sections   []Section // Top-level sections rendered as fieldsets.
-}
-
-// KeyValue represents a submitted form value.
-type KeyValue struct {
-	Key   string
-	Value string
-}
-
-// ResultData is the view model passed to the "result" HTML template
-// after a form submission.
-type ResultData struct {
-	Title  string     // Page title carried over from FormData.
-	Values []KeyValue // Submitted key-value pairs, sorted alphabetically.
 }
 
 // CueTypeToInputType maps a CUE kind to an HTML input type.
@@ -256,9 +244,9 @@ func ParseSection(name string, val cue.Value, pathPrefix string, sectionHints UI
 // When multiple roots exist, each is rendered as its own section under a
 // generic "Configuration" title. If no definition contains struct sub-fields,
 // all definitions are treated as roots.
-func BuildFormData(rootValue cue.Value) (FormData, error) {
-	if err := rootValue.Err(); err != nil {
-		return FormData{}, err
+func BuildFormData(cueSchema cue.Value) (FormData, error) {
+	if err := cueSchema.Err(); err != nil {
+		return FormData{}, fmt.Errorf("invalid CUE schema: %w", err)
 	}
 
 	type defEntry struct {
@@ -266,9 +254,9 @@ func BuildFormData(rootValue cue.Value) (FormData, error) {
 		val  cue.Value
 	}
 	var allDefs []defEntry
-	defIter, err := rootValue.Fields(cue.Definitions(true))
+	defIter, err := cueSchema.Fields(cue.Definitions(true))
 	if err != nil {
-		return FormData{}, err
+		return FormData{}, fmt.Errorf("failed to iterate CUE definitions: %w", err)
 	}
 	for defIter.Next() {
 		name := strings.TrimPrefix(defIter.Selector().String(), "#")

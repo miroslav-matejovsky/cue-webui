@@ -11,6 +11,7 @@
 
 <body>
   <div class="container">
+    {{if .ErrorMessage}}<div class="error-banner">{{.ErrorMessage}}</div>{{end}}
     <h1>{{.Title}}</h1>
     <form method="POST" action="/submit">
       {{template "sections_block" .}}
@@ -100,7 +101,8 @@
   <div class="field{{if .Colspan}} colspan-{{.Colspan}}{{end}}">
     {{if eq .Widget "checkbox"}}
     <label class="checkbox-label">
-      <input type="checkbox" id="{{.Path}}" name="{{.Path}}" value="true" {{if .Readonly}} disabled{{end}}>
+      <input type="checkbox" id="{{.Path}}" name="{{.Path}}" value="true" {{if eq .Default "true" }}checked {{end}}{{if
+        .Readonly}} disabled{{end}}>
       <span>{{.Label}}</span>
     </label>
     {{else}}
