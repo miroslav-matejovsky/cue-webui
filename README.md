@@ -8,6 +8,7 @@ The module root is library-focused. Example CUE schemas live under `examples/` a
 
 - **Schema-driven forms** — CUE definitions are introspected at startup; fields, types, and constraints become form inputs automatically.
 - **Native CUE validation** — Disjunctions (`"a" | "b"`) render as `<select>` dropdowns, bound constraints (`>=1 & <=65535`) become HTML `min`/`max` attributes, and `=~` regex constraints become `pattern` attributes.
+- **JSON Schema export** — A `/schema.json` endpoint exposes the loaded CUE schema as JSON Schema (Draft 2020-12), generated natively by the CUE toolchain.
 - **UI hints via doc comments** — Control labels, help text, widget types, layout, visibility, ordering, and more with `// UI_*` directives.
 - **Nested sections and tabs** — Struct fields become recursive sections, and deeply nested groups can switch to CSS-only tabs.
 - **Default values** — CUE defaults (`*"value"`) pre-populate form fields.
@@ -46,6 +47,15 @@ If you want to embed your own schema in an application, the flow is:
 1. Compile the CUE schema with `cuecontext.New().CompileString(...)`.
 2. Convert it to `webform.FormData` with `webform.BuildFormData(...)`.
 3. Serve the generated handler from `webui.NewHandler(formData, cueSchema, configPath)`.
+
+The handler exposes the following HTTP endpoints:
+
+| Endpoint              | Method | Description                                                  |
+| --------------------- | ------ | ------------------------------------------------------------ |
+| `/`                   | GET    | HTML form pre-populated with values from `configPath`        |
+| `/static/style.css`   | GET    | Embedded CSS stylesheet                                      |
+| `/schema.json`        | GET    | JSON Schema (Draft 2020-12) generated from the CUE schema    |
+| `/submit`             | POST   | Validates form values, writes JSON to `configPath`, redirects |
 
 ## Schema Example
 
@@ -134,7 +144,7 @@ internal/
   config/
     config.go                # Load/save flat key-value maps to/from JSON; CUE validation
   webui/
-    server.go                # HTTP handler (form page, CSS, submit endpoint)
+    server.go                # HTTP handler (form page, CSS, schema.json, submit endpoint)
     values.go                # Stored value hydration and submission merging helpers
     templates/
       form.html              # Go HTML template (form + result views)

@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/encoding/jsonschema"
 	"github.com/miroslav-matejovsky/cue-webui/internal/config"
 	"github.com/miroslav-matejovsky/cue-webui/internal/webui/webform"
 )
@@ -36,9 +37,10 @@ type formPageData struct {
 	ErrorMessage string
 }
 
-// NewHandler returns an http.Handler that serves three endpoints:
+// NewHandler returns an http.Handler that serves four endpoints:
 //   - GET  /                  — renders the HTML form populated from the JSON config file.
 //   - GET  /static/style.css  — serves the embedded CSS stylesheet.
+//   - GET  /schema.json       — serves the JSON Schema derived from the CUE schema.
 //   - POST /submit            — validates submitted values against the CUE schema,
 //     writes valid JSON to configPath, and redirects to /.
 //
@@ -73,6 +75,21 @@ func NewHandler(formData webform.FormData, cueSchema cue.Value, configPath strin
 	mux.HandleFunc("/static/style.css", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/css; charset=utf-8")
 		fmt.Fprint(w, cssFile)
+	})
+
+	mux.HandleFunc("/schema.json", func(w http.ResponseWriter, r *http.Request) {
+		expr, err := jsonschema.Generate(cueSchema, nil)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("generating JSON Schema: %v", err), http.StatusInternalServerError)
+			return
+		}
+		jsonBytes, err := cueSchema.Context().BuildExpr(expr).MarshalJSON()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("marshalling JSON Schema: %v", err), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Write(jsonBytes)
 	})
 
 	mux.HandleFunc("/submit", func(w http.ResponseWriter, r *http.Request) {
