@@ -4,7 +4,7 @@ A developer tool for experimenting with [CUE](https://cuelang.org/) schemas for 
 
 Can also serve as inspiration or a starting point for your own configuration server built on top of CUE.
 
-Example CUE schemas live under `examples/` and can be served with `go run ./cmd -live <schema.cue> <config.json>`.
+Example CUE schemas live under `examples/` and can be served with `go run ./cmd <schema.cue> <config.json>`.
 
 ## Features
 
@@ -32,18 +32,26 @@ Pre-built binaries for Linux, macOS, and Windows are published with every [GitHu
 
 Download the binary for your platform, make it executable (Linux/macOS: `chmod +x`), and run it directly — no Go toolchain required.
 
-## Quick Start
-
-Point the `cmd` binary at any CUE schema file to get an instant web form:
-
 ```bash
-go run ./cmd <schema.cue> <config.json>
+# Linux / macOS
+./cue-webui-linux-amd64 -live -addr 0.0.0.0:9090 schema.cue config.json
+
+# Windows
+cue-webui-windows-amd64.exe -live -addr 0.0.0.0:9090 schema.cue config.json
 ```
 
-An optional `-addr` flag sets the listen address (default `localhost:8080`):
+## Quick Start
+
+Point the tool at any CUE schema file to get an instant web form. Using a pre-built binary:
 
 ```bash
-go run ./cmd -addr 0.0.0.0:9090 myschema.cue config.json
+cue-webui-windows-amd64.exe -live -addr 0.0.0.0:9090 schema.cue config.json
+```
+
+Or with the Go toolchain:
+
+```bash
+go run ./cmd -live -addr 0.0.0.0:9090 schema.cue config.json
 ```
 
 Open [http://localhost:8080](http://localhost:8080) to see the generated form.
@@ -53,7 +61,7 @@ Open [http://localhost:8080](http://localhost:8080) to see the generated form.
 Pass the `-live` flag to enable live reload. The server watches the schema and config files for changes and automatically refreshes the browser via a server-sent events (SSE) endpoint:
 
 ```bash
-go run ./cmd -live myschema.cue config.json
+cue-webui-windows-amd64.exe -live schema.cue config.json
 ```
 
 When live reload is active, a small EventSource script is injected into the page. No external tooling or browser extension is needed.
