@@ -4,24 +4,25 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"github.com/miroslav-matejovsky/cue-webui/internal/webui/webform"
 )
 
-func applyStoredValues(formData FormData, values map[string]string) FormData {
+func applyStoredValues(formData webform.FormData, values map[string]string) webform.FormData {
 	cloned := formData
 	cloned.Sections = cloneSectionsWithValues(formData.Sections, values)
 	return cloned
 }
 
-func cloneSectionsWithValues(sections []Section, values map[string]string) []Section {
+func cloneSectionsWithValues(sections []webform.Section, values map[string]string) []webform.Section {
 	if len(sections) == 0 {
 		return nil
 	}
 
-	cloned := make([]Section, 0, len(sections))
+	cloned := make([]webform.Section, 0, len(sections))
 	for _, section := range sections {
 		sectionCopy := section
 		if len(section.Fields) > 0 {
-			sectionCopy.Fields = make([]Field, len(section.Fields))
+			sectionCopy.Fields = make([]webform.Field, len(section.Fields))
 			for index, field := range section.Fields {
 				fieldCopy := field
 				if storedValue, ok := values[field.Path]; ok {
@@ -40,13 +41,13 @@ func cloneSectionsWithValues(sections []Section, values map[string]string) []Sec
 	return cloned
 }
 
-func mergeSubmittedValues(formData FormData, existing map[string]string, submitted url.Values) map[string]string {
+func mergeSubmittedValues(formData webform.FormData, existing map[string]string, submitted url.Values) map[string]string {
 	merged := cloneValueMap(existing)
 	for key, values := range submitted {
 		merged[key] = strings.Join(values, ", ")
 	}
 
-	visitFields(formData.Sections, func(field Field) {
+	visitFields(formData.Sections, func(field webform.Field) {
 		values, ok := submitted[field.Path]
 		if ok {
 			merged[field.Path] = strings.Join(values, ", ")
@@ -67,21 +68,21 @@ func mergeSubmittedValues(formData FormData, existing map[string]string, submitt
 	return merged
 }
 
-func resultDataFromValues(title string, values map[string]string) ResultData {
+func resultDataFromValues(title string, values map[string]string) webform.ResultData {
 	keys := make([]string, 0, len(values))
 	for key := range values {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
 
-	result := ResultData{Title: title, Values: make([]KeyValue, 0, len(keys))}
+	result := webform.ResultData{Title: title, Values: make([]webform.KeyValue, 0, len(keys))}
 	for _, key := range keys {
-		result.Values = append(result.Values, KeyValue{Key: key, Value: values[key]})
+		result.Values = append(result.Values, webform.KeyValue{Key: key, Value: values[key]})
 	}
 	return result
 }
 
-func visitFields(sections []Section, visit func(Field)) {
+func visitFields(sections []webform.Section, visit func(webform.Field)) {
 	for _, section := range sections {
 		for _, field := range section.Fields {
 			visit(field)
@@ -90,7 +91,7 @@ func visitFields(sections []Section, visit func(Field)) {
 	}
 }
 
-func fieldIsDisabled(field Field) bool {
+func fieldIsDisabled(field webform.Field) bool {
 	if !field.Readonly {
 		return false
 	}

@@ -1,4 +1,4 @@
-package webui
+package webform
 
 import (
 	"fmt"

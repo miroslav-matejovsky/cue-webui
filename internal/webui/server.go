@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/miroslav-matejovsky/cue-webui/internal/storage"
+	"github.com/miroslav-matejovsky/cue-webui/internal/webui/webform"
 )
 
 //go:embed templates/form.html
@@ -33,7 +34,7 @@ func ParseFormTemplate() (*template.Template, error) {
 //
 // Non-POST requests to /submit are redirected to /. Any other path returns 404.
 // The provided Store is used to hydrate the form on load and persist values on submit.
-func NewHandlerWithStorage(formData FormData, store storage.Store) (http.Handler, error) {
+func NewHandlerWithStorage(formData webform.FormData, store storage.Store) (http.Handler, error) {
 	mux := http.NewServeMux()
 	tmpl, err := ParseFormTemplate()
 	if err != nil {

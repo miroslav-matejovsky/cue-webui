@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/miroslav-matejovsky/cue-webui/internal/storage"
+	"github.com/miroslav-matejovsky/cue-webui/internal/webui/webform"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,15 +33,15 @@ func TestParseFormTemplate(t *testing.T) {
 	require.NotNil(t, tmpl)
 }
 
-func sampleFormData() FormData {
-	return FormData{
+func sampleFormData() webform.FormData {
+	return webform.FormData{
 		Title: "Test Config",
-		Sections: []Section{
+		Sections: []webform.Section{
 			{
 				Name:    "server",
 				Label:   "Server",
 				Columns: 2,
-				Fields: []Field{
+				Fields: []webform.Field{
 					{Name: "host", Path: "server.host", Label: "Host", InputType: "text", Widget: "input"},
 					{Name: "port", Path: "server.port", Label: "Port", InputType: "number", Widget: "input", Min: "1", Max: "65535"},
 				},
@@ -49,7 +50,7 @@ func sampleFormData() FormData {
 	}
 }
 
-func mustNewHandlerWithStorage(t *testing.T, fd FormData, store storage.Store) http.Handler {
+func mustNewHandlerWithStorage(t *testing.T, fd webform.FormData, store storage.Store) http.Handler {
 	t.Helper()
 	h, err := NewHandlerWithStorage(fd, store)
 	require.NoError(t, err)
@@ -119,11 +120,11 @@ func TestNewHandler_SubmitGetRedirects(t *testing.T) {
 }
 
 func TestNewHandler_FormRenders_SelectWidget(t *testing.T) {
-	fd := FormData{
+	fd := webform.FormData{
 		Title: "Select Test",
-		Sections: []Section{{
+		Sections: []webform.Section{{
 			Name: "net", Label: "Network", Columns: 2,
-			Fields: []Field{
+			Fields: []webform.Field{
 				{Name: "protocol", Path: "protocol", Label: "Protocol", Widget: "select", Options: []string{"http", "https"}},
 			},
 		}},
@@ -140,11 +141,11 @@ func TestNewHandler_FormRenders_SelectWidget(t *testing.T) {
 }
 
 func TestNewHandler_FormRenders_CheckboxWidget(t *testing.T) {
-	fd := FormData{
+	fd := webform.FormData{
 		Title: "Checkbox Test",
-		Sections: []Section{{
+		Sections: []webform.Section{{
 			Name: "flags", Label: "Flags", Columns: 1,
-			Fields: []Field{
+			Fields: []webform.Field{
 				{Name: "enabled", Path: "enabled", Label: "Enabled", Widget: "checkbox"},
 			},
 		}},
@@ -158,11 +159,11 @@ func TestNewHandler_FormRenders_CheckboxWidget(t *testing.T) {
 }
 
 func TestNewHandler_LoadsStoredValues(t *testing.T) {
-	fd := FormData{
+	fd := webform.FormData{
 		Title: "Stored Values Test",
-		Sections: []Section{{
+		Sections: []webform.Section{{
 			Name: "server", Label: "Server", Columns: 2,
-			Fields: []Field{
+			Fields: []webform.Field{
 				{Name: "host", Path: "server.host", Label: "Host", Widget: "input", InputType: "text"},
 				{Name: "protocol", Path: "server.protocol", Label: "Protocol", Widget: "select", Options: []string{"http", "https"}},
 				{Name: "enabled", Path: "server.enabled", Label: "Enabled", Widget: "checkbox"},
@@ -187,11 +188,11 @@ func TestNewHandler_LoadsStoredValues(t *testing.T) {
 }
 
 func TestNewHandler_FormRenders_TextareaWidget(t *testing.T) {
-	fd := FormData{
+	fd := webform.FormData{
 		Title: "Textarea Test",
-		Sections: []Section{{
+		Sections: []webform.Section{{
 			Name: "content", Label: "Content", Columns: 1,
-			Fields: []Field{
+			Fields: []webform.Field{
 				{Name: "notes", Path: "notes", Label: "Notes", Widget: "textarea"},
 			},
 		}},
@@ -205,11 +206,11 @@ func TestNewHandler_FormRenders_TextareaWidget(t *testing.T) {
 }
 
 func TestNewHandler_FormRenders_RadioWidget(t *testing.T) {
-	fd := FormData{
+	fd := webform.FormData{
 		Title: "Radio Test",
-		Sections: []Section{{
+		Sections: []webform.Section{{
 			Name: "level", Label: "Level", Columns: 1,
-			Fields: []Field{
+			Fields: []webform.Field{
 				{Name: "log_level", Path: "log_level", Label: "Log Level", Widget: "radio", Options: []string{"debug", "info", "error"}},
 			},
 		}},
@@ -227,11 +228,11 @@ func TestNewHandler_FormRenders_RadioWidget(t *testing.T) {
 }
 
 func TestNewHandler_FormRenders_HiddenField(t *testing.T) {
-	fd := FormData{
+	fd := webform.FormData{
 		Title: "Hidden Test",
-		Sections: []Section{{
+		Sections: []webform.Section{{
 			Name: "misc", Label: "Misc", Columns: 1,
-			Fields: []Field{
+			Fields: []webform.Field{
 				{Name: "secret", Path: "secret", Label: "Secret", Widget: "input", Hidden: true},
 				{Name: "visible", Path: "visible", Label: "Visible", Widget: "input"},
 			},
@@ -267,11 +268,11 @@ func TestNewHandler_SubmitResultSorted(t *testing.T) {
 }
 
 func TestNewHandler_SubmitPostSavesToStorage(t *testing.T) {
-	fd := FormData{
+	fd := webform.FormData{
 		Title: "Persist Test",
-		Sections: []Section{{
+		Sections: []webform.Section{{
 			Name: "server", Label: "Server", Columns: 2,
-			Fields: []Field{
+			Fields: []webform.Field{
 				{Name: "host", Path: "server.host", Label: "Host", Widget: "input", InputType: "text"},
 				{Name: "enabled", Path: "server.enabled", Label: "Enabled", Widget: "checkbox"},
 				{Name: "protocol", Path: "server.protocol", Label: "Protocol", Widget: "select", Options: []string{"http", "https"}, Readonly: true},
@@ -304,13 +305,13 @@ func TestNewHandler_SubmitPostSavesToStorage(t *testing.T) {
 }
 
 func TestNewHandler_FormRenders_NestedSections(t *testing.T) {
-	fd := FormData{
+	fd := webform.FormData{
 		Title: "Nested Test",
-		Sections: []Section{{
+		Sections: []webform.Section{{
 			Name: "outer", Label: "Outer", Columns: 2,
-			Sections: []Section{{
+			Sections: []webform.Section{{
 				Name: "inner", Label: "Inner", Columns: 1,
-				Fields: []Field{
+				Fields: []webform.Field{
 					{Name: "val", Path: "outer.inner.val", Label: "Val", Widget: "input", InputType: "text"},
 				},
 			}},
@@ -328,17 +329,17 @@ func TestNewHandler_FormRenders_NestedSections(t *testing.T) {
 }
 
 func TestNewHandler_FormRenders_TabNavigation(t *testing.T) {
-	fd := FormData{
+	fd := webform.FormData{
 		Title:      "Tabbed Test",
 		ID:         "root-config",
 		Navigation: "tabs",
-		Sections: []Section{
+		Sections: []webform.Section{
 			{
 				ID:      "network",
 				Name:    "network",
 				Label:   "Network",
 				Columns: 2,
-				Fields: []Field{
+				Fields: []webform.Field{
 					{Name: "host", Path: "network.host", Label: "Host", Widget: "input", InputType: "text"},
 				},
 			},
@@ -347,7 +348,7 @@ func TestNewHandler_FormRenders_TabNavigation(t *testing.T) {
 				Name:    "logging",
 				Label:   "Logging",
 				Columns: 1,
-				Fields: []Field{
+				Fields: []webform.Field{
 					{Name: "level", Path: "logging.level", Label: "Level", Widget: "select", Options: []string{"debug", "info"}},
 				},
 			},

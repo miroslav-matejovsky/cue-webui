@@ -9,6 +9,7 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/miroslav-matejovsky/cue-webui/internal/storage"
 	"github.com/miroslav-matejovsky/cue-webui/internal/webui"
+	"github.com/miroslav-matejovsky/cue-webui/internal/webui/webform"
 )
 
 func main() {
@@ -31,7 +32,7 @@ func main() {
 		log.Fatalf("Failed to compile CUE schema: %v", rootValue.Err())
 	}
 
-	formData, err := webui.BuildFormData(rootValue)
+	formData, err := webform.BuildFormData(rootValue)
 	if err != nil {
 		log.Fatalf("Failed to build form data: %v", err)
 	}
