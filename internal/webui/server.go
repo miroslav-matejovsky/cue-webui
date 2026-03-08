@@ -6,7 +6,9 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"time"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/encoding/jsonschema"
@@ -35,7 +37,8 @@ func ParseFormTemplate() (*template.Template, error) {
 // formPageData is the view model passed to the "form" template.
 type formPageData struct {
 	webform.FormData
-	ErrorMessage string
+	ErrorMessage   string
+	SuccessMessage string
 }
 
 // NewHandler returns an http.Handler that serves four endpoints:
@@ -67,8 +70,15 @@ func NewHandler(formData webform.FormData, cueSchema cue.Value, configPath strin
 			populated = applyStoredValues(formData, flat)
 		}
 
+		var successMsg string
+		if savedAt := r.URL.Query().Get("saved"); savedAt != "" {
+			if t, err := time.Parse(time.RFC3339, savedAt); err == nil {
+				successMsg = fmt.Sprintf("Configuration saved to %s at %s", configPath, t.Format("15:04:05"))
+			}
+		}
+
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if err := tmpl.ExecuteTemplate(w, "form", formPageData{FormData: populated}); err != nil {
+		if err := tmpl.ExecuteTemplate(w, "form", formPageData{FormData: populated, SuccessMessage: successMsg}); err != nil {
 			http.Error(w, "Template error", http.StatusInternalServerError)
 		}
 	})
@@ -134,7 +144,8 @@ func NewHandler(formData webform.FormData, cueSchema cue.Value, configPath strin
 			return
 		}
 
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		savedAt := url.QueryEscape(time.Now().Format(time.RFC3339))
+		http.Redirect(w, r, "/?saved="+savedAt, http.StatusSeeOther)
 	})
 
 	return mux, nil

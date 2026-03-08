@@ -132,7 +132,7 @@ func TestNewHandler_SubmitPost(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusSeeOther, rec.Code)
-	require.Equal(t, "/", rec.Header().Get("Location"))
+	require.True(t, strings.HasPrefix(rec.Header().Get("Location"), "/?saved="), "expected redirect to /?saved=..., got %s", rec.Header().Get("Location"))
 
 	// Verify JSON file was written
 	data, err := os.ReadFile(configPath)

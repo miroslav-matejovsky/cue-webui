@@ -350,6 +350,17 @@ legend {
 }
 
 /* --- Error banner --- */
+.success-banner {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #86efac;
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
 .error-banner {
   background: #fef2f2;
   color: #991b1b;

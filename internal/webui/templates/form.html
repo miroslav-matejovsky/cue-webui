@@ -11,6 +11,7 @@
 
 <body>
   <div class="container">
+    {{if .SuccessMessage}}<div class="success-banner">{{.SuccessMessage}}</div>{{end}}
     {{if .ErrorMessage}}<div class="error-banner">{{.ErrorMessage}}</div>{{end}}
     <h1>{{.Title}}</h1>
     <form method="POST" action="/submit">
