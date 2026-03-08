@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"cuelang.org/go/cue"
+	"github.com/miroslav-matejovsky/cue-webui/internal/config"
 	"github.com/miroslav-matejovsky/cue-webui/internal/webui/webform"
 )
 
@@ -57,12 +58,10 @@ func NewHandler(formData webform.FormData, cueSchema cue.Value, configPath strin
 		}
 
 		populated := formData
-		if data, err := os.ReadFile(configPath); err == nil {
-			if flat, err := nestedJSONToFlatMap(data); err == nil {
-				populated = applyStoredValues(formData, flat)
-			} else {
-				log.Printf("Warning: failed to parse config file %s: %v", configPath, err)
-			}
+		if flat, err := config.Load(configPath); err != nil {
+			log.Printf("Warning: failed to parse config file %s: %v", configPath, err)
+		} else if flat != nil {
+			populated = applyStoredValues(formData, flat)
 		}
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -87,24 +86,22 @@ func NewHandler(formData webform.FormData, cueSchema cue.Value, configPath strin
 		}
 
 		// Load existing values from config file (if any)
-		existing := map[string]string{}
-		if data, err := os.ReadFile(configPath); err == nil {
-			if flat, err := nestedJSONToFlatMap(data); err == nil {
-				existing = flat
-			}
+		existing, _ := config.Load(configPath)
+		if existing == nil {
+			existing = map[string]string{}
 		}
 
 		updatedValues := mergeSubmittedValues(formData, existing, r.PostForm)
 
 		// Convert to nested JSON
-		jsonBytes, err := flatMapToNestedJSON(updatedValues, formData)
+		jsonBytes, err := config.ToJSON(updatedValues, CollectFieldTypes(formData))
 		if err != nil {
 			renderFormWithError(w, tmpl, formData, updatedValues, fmt.Sprintf("Failed to build JSON: %v", err))
 			return
 		}
 
 		// Validate against CUE schema
-		if err := validateJSONWithCUE(jsonBytes, cueSchema); err != nil {
+		if err := config.Validate(jsonBytes, cueSchema); err != nil {
 			renderFormWithError(w, tmpl, formData, updatedValues, fmt.Sprintf("Validation error: %v", err))
 			return
 		}
