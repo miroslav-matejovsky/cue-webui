@@ -3,6 +3,8 @@
 package schema
 
 import (
+	"fmt"
+
 	"cuelang.org/go/cue"
 	"github.com/miroslav-matejovsky/cue-webui/internal/webui/webform"
 )
@@ -14,13 +16,12 @@ import (
 //
 // Otherwise, the function finds the single "root" definition using the same
 // heuristic as BuildFormData (the definition that contains struct sub-fields).
-// If multiple roots exist the whole schema value is returned so all definitions
-// appear in $defs. If no definitions are found the schema value itself is
-// returned unchanged.
-func RootValue(cueSchema cue.Value) cue.Value {
+// If multiple roots exist an error is returned. If no definitions are found
+// the schema value itself is returned unchanged.
+func RootValue(cueSchema cue.Value) (cue.Value, error) {
 	iter, err := cueSchema.Fields(cue.Definitions(true))
 	if err != nil {
-		return cueSchema
+		return cueSchema, nil
 	}
 
 	type defEntry struct {
@@ -32,15 +33,19 @@ func RootValue(cueSchema cue.Value) cue.Value {
 		allDefs = append(allDefs, defEntry{iter.Selector(), iter.Value()})
 	}
 	if len(allDefs) == 0 {
-		return cueSchema
+		return cueSchema, nil
 	}
 
 	// Check for explicit UI_Root: true hint.
-	if rootDef := webform.FindRootDef(cueSchema); rootDef != "" {
+	rootDef, err := webform.FindRootDef(cueSchema)
+	if err != nil {
+		return cue.Value{}, err
+	}
+	if rootDef != "" {
 		sel := cue.Def("#" + rootDef)
 		for _, d := range allDefs {
 			if d.sel == sel {
-				return cueSchema.LookupPath(cue.MakePath(d.sel))
+				return cueSchema.LookupPath(cue.MakePath(d.sel)), nil
 			}
 		}
 	}
@@ -52,7 +57,10 @@ func RootValue(cueSchema cue.Value) cue.Value {
 		}
 	}
 	if len(roots) == 1 {
-		return cueSchema.LookupPath(cue.MakePath(roots[0].sel))
+		return cueSchema.LookupPath(cue.MakePath(roots[0].sel)), nil
 	}
-	return cueSchema
+	if len(roots) > 1 {
+		return cue.Value{}, fmt.Errorf("multiple root definitions found; add UI_Root: true to exactly one definition")
+	}
+	return cueSchema, nil
 }

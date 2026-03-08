@@ -118,7 +118,12 @@ func NewHandler(formData webform.FormData, cueSchema cue.Value, configPath strin
 	})
 
 	mux.HandleFunc("/schema.json", func(w http.ResponseWriter, r *http.Request) {
-		expr, err := jsonschema.Generate(schema.RootValue(getSchema()), nil)
+		rootVal, err := schema.RootValue(getSchema())
+		if err != nil {
+			http.Error(w, fmt.Sprintf("resolving schema root: %v", err), http.StatusInternalServerError)
+			return
+		}
+		expr, err := jsonschema.Generate(rootVal, nil)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("generating JSON Schema: %v", err), http.StatusInternalServerError)
 			return
@@ -161,7 +166,13 @@ func NewHandler(formData webform.FormData, cueSchema cue.Value, configPath strin
 
 		// Validate against CUE schema — use the root definition value so that
 		// definition-based schemas (#Configuration etc.) are validated correctly.
-		if err := config.Validate(jsonBytes, schema.RootValue(getSchema())); err != nil {
+		rootVal, err := schema.RootValue(getSchema())
+		if err != nil {
+			log.Printf("Schema root error: %v", err)
+			renderFormWithError(w, tmpl, currentFormData, updatedValues, fmt.Sprintf("Schema root error: %v", err))
+			return
+		}
+		if err := config.Validate(jsonBytes, rootVal); err != nil {
 			log.Printf("Validation error: %v", err)
 			renderFormWithError(w, tmpl, currentFormData, updatedValues, fmt.Sprintf("Validation error: %v", err))
 			return

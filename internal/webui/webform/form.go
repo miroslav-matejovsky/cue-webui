@@ -235,19 +235,27 @@ func ParseSection(name string, val cue.Value, pathPrefix string, sectionHints UI
 
 // FindRootDef scans definitions in a CUE schema for the UI_Root: true hint
 // and returns the name (without "#") of the marked definition. If no definition
-// is marked, it returns an empty string.
-func FindRootDef(cueSchema cue.Value) string {
+// is marked, it returns an empty string. If multiple definitions are marked
+// with UI_Root: true, it returns an error.
+func FindRootDef(cueSchema cue.Value) (string, error) {
 	iter, err := cueSchema.Fields(cue.Definitions(true))
 	if err != nil {
-		return ""
+		return "", nil
 	}
+	var roots []string
 	for iter.Next() {
 		hints := ParseUIHints(iter.Value())
 		if hints.Root {
-			return strings.TrimPrefix(iter.Selector().String(), "#")
+			roots = append(roots, strings.TrimPrefix(iter.Selector().String(), "#"))
 		}
 	}
-	return ""
+	if len(roots) > 1 {
+		return "", fmt.Errorf("multiple definitions marked with UI_Root: true (%s); exactly one is allowed", strings.Join(roots, ", "))
+	}
+	if len(roots) == 1 {
+		return roots[0], nil
+	}
+	return "", nil
 }
 
 // BuildFormData constructs a FormData from a compiled CUE schema value.
@@ -287,7 +295,10 @@ func BuildFormData(cueSchema cue.Value) (FormData, error) {
 	}
 
 	// Check for explicit UI_Root: true hint.
-	rootDef := FindRootDef(cueSchema)
+	rootDef, err := FindRootDef(cueSchema)
+	if err != nil {
+		return FormData{}, err
+	}
 	if rootDef != "" {
 		for _, d := range allDefs {
 			if d.name == rootDef {
@@ -325,35 +336,32 @@ func BuildFormData(cueSchema cue.Value) (FormData, error) {
 	if len(roots) == 0 {
 		roots = allDefs
 	}
+	if len(roots) > 1 {
+		names := make([]string, len(roots))
+		for i, r := range roots {
+			names[i] = r.name
+		}
+		return FormData{}, fmt.Errorf("multiple root definitions found (%s); add UI_Root: true to exactly one definition", strings.Join(names, ", "))
+	}
 
 	var formData FormData
-	if len(roots) == 1 {
-		// Single root: unwrap it — its sub-sections become the top-level sections.
-		hints := ParseUIHints(roots[0].val)
-		top := ParseSection(roots[0].name, roots[0].val, "", hints)
-		formData.Title = top.Label
-		formData.ID = top.ID
-		formData.Navigation = top.Navigation
-		formData.Sections = top.Sections
-		// If the root also has direct scalar fields, show them in a "General" section.
-		if len(top.Fields) > 0 {
-			general := Section{
-				ID:      top.ID + "-general",
-				Name:    top.Name,
-				Label:   "General",
-				Columns: top.Columns,
-				Fields:  top.Fields,
-			}
-			formData.Sections = append([]Section{general}, formData.Sections...)
+	// Single root: unwrap it — its sub-sections become the top-level sections.
+	hints := ParseUIHints(roots[0].val)
+	top := ParseSection(roots[0].name, roots[0].val, "", hints)
+	formData.Title = top.Label
+	formData.ID = top.ID
+	formData.Navigation = top.Navigation
+	formData.Sections = top.Sections
+	// If the root also has direct scalar fields, show them in a "General" section.
+	if len(top.Fields) > 0 {
+		general := Section{
+			ID:      top.ID + "-general",
+			Name:    top.Name,
+			Label:   "General",
+			Columns: top.Columns,
+			Fields:  top.Fields,
 		}
-	} else {
-		formData.Title = "Configuration"
-		formData.ID = "configuration"
-		for _, r := range roots {
-			hints := ParseUIHints(r.val)
-			s := ParseSection(r.name, r.val, "", hints)
-			formData.Sections = append(formData.Sections, s)
-		}
+		formData.Sections = append([]Section{general}, formData.Sections...)
 	}
 
 	return formData, nil

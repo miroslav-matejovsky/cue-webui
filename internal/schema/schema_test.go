@@ -12,19 +12,24 @@ import (
 func TestRootValue_PlainStruct_ReturnsSelf(t *testing.T) {
 	ctx := cuecontext.New()
 	v := ctx.CompileString(`{ host: string, port: int }`)
-	require.Equal(t, v, schema.RootValue(v))
+	got, err := schema.RootValue(v)
+	require.NoError(t, err)
+	require.Equal(t, v, got)
 }
 
 func TestRootValue_NoDefs_ReturnsSelf(t *testing.T) {
 	ctx := cuecontext.New()
 	v := ctx.CompileString(`{...}`)
-	require.Equal(t, v, schema.RootValue(v))
+	got, err := schema.RootValue(v)
+	require.NoError(t, err)
+	require.Equal(t, v, got)
 }
 
 func TestRootValue_SingleRootDef_ReturnsRootValue(t *testing.T) {
 	ctx := cuecontext.New()
 	v := ctx.CompileString("#Connection: { host: string }\n#Config: { conn: #Connection }\n")
-	got := schema.RootValue(v)
+	got, err := schema.RootValue(v)
+	require.NoError(t, err)
 	require.Nil(t, got.Err())
 	// The returned value should represent #Config (has a "conn" field).
 	iter, err := got.Fields(cue.Optional(true))
@@ -36,26 +41,20 @@ func TestRootValue_SingleRootDef_ReturnsRootValue(t *testing.T) {
 	require.Contains(t, fields, "conn", "returned value should be #Config with a 'conn' field")
 }
 
-func TestRootValue_MultipleRootDefs_ReturnsTopLevel(t *testing.T) {
+func TestRootValue_MultipleRootDefs_ReturnsError(t *testing.T) {
 	ctx := cuecontext.New()
-	// Two definitions both with struct sub-fields — no single root, return top level.
+	// Two definitions both with struct sub-fields — no UI_Root → should return error.
 	v := ctx.CompileString("#A: { sub: { x: int } }\n#B: { sub: { y: string } }\n")
-	got := schema.RootValue(v)
-	// Should return the top-level value (both definitions remain as definitions).
-	iter, err := got.Fields(cue.Definitions(true))
-	require.NoError(t, err)
-	var defs []string
-	for iter.Next() {
-		defs = append(defs, iter.Label())
-	}
-	require.Contains(t, defs, "#A")
-	require.Contains(t, defs, "#B")
+	_, err := schema.RootValue(v)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "UI_Root")
 }
 
 func TestRootValue_UIRootHint_ReturnsNamedDef(t *testing.T) {
 	ctx := cuecontext.New()
 	v := ctx.CompileString("#Connection: { database: { host: string } }\n// UI_Root: true\n#Config: { conn: #Connection }\n")
-	got := schema.RootValue(v)
+	got, err := schema.RootValue(v)
+	require.NoError(t, err)
 	require.Nil(t, got.Err())
 	iter, err := got.Fields(cue.Optional(true))
 	require.NoError(t, err)
