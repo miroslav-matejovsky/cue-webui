@@ -6,3 +6,4 @@ applyTo: '**/*.go,**/go.mod,**/go.sum'
 - When rethrowing an error, wrap it with additional context using `fmt.Errorf` and the `%w` verb, e.g. `return fmt.Errorf("failed to do something: %w", err)`.
 - Use testify require for assertions in tests, e.g. `require.NoError(t, err)`, `require.Equal(t, expected, actual)`.
 - Apply TDD when fixing bugs and adding features: write a failing test that reproduces the issue, then implement the fix or feature until the test passes.
+- Windows is primary platform, so ensure code works on Windows and use Windows-compatible paths and tools in tests. Use `filepath.Join` for constructing paths.
