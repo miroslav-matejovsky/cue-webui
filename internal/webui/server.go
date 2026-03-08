@@ -6,7 +6,7 @@ import (
 	"html/template"
 	"net/http"
 
-	"github.com/miroslav-matejovsky/cue-webui/storage"
+	"github.com/miroslav-matejovsky/cue-webui/internal/storage"
 )
 
 //go:embed templates/form.html

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/miroslav-matejovsky/cue-webui/storage"
+	"github.com/miroslav-matejovsky/cue-webui/internal/storage"
 	"github.com/stretchr/testify/require"
 )
 

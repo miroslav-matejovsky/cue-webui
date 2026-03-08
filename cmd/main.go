@@ -7,8 +7,8 @@ import (
 	"os"
 
 	"cuelang.org/go/cue/cuecontext"
-	"github.com/miroslav-matejovsky/cue-webui/storage"
-	"github.com/miroslav-matejovsky/cue-webui/webui"
+	"github.com/miroslav-matejovsky/cue-webui/internal/storage"
+	"github.com/miroslav-matejovsky/cue-webui/internal/webui"
 )
 
 func main() {
