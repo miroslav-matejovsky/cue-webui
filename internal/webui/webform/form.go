@@ -2,6 +2,7 @@ package webform
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -258,7 +259,7 @@ func ParseSection(name string, val cue.Value, pathPrefix string, sectionHints UI
 // all definitions are treated as roots.
 func BuildFormData(cueSchema cue.Value) (FormData, error) {
 	if err := cueSchema.Err(); err != nil {
-		return FormData{}, err
+		return FormData{}, fmt.Errorf("invalid CUE schema: %w", err)
 	}
 
 	type defEntry struct {
@@ -268,7 +269,7 @@ func BuildFormData(cueSchema cue.Value) (FormData, error) {
 	var allDefs []defEntry
 	defIter, err := cueSchema.Fields(cue.Definitions(true))
 	if err != nil {
-		return FormData{}, err
+		return FormData{}, fmt.Errorf("failed to iterate CUE definitions: %w", err)
 	}
 	for defIter.Next() {
 		name := strings.TrimPrefix(defIter.Selector().String(), "#")
