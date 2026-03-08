@@ -6,10 +6,15 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"time"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/encoding/jsonschema"
 	"github.com/miroslav-matejovsky/cue-webui/internal/config"
+	"github.com/miroslav-matejovsky/cue-webui/internal/schema"
+	"github.com/miroslav-matejovsky/cue-webui/internal/watcher"
 	"github.com/miroslav-matejovsky/cue-webui/internal/webui/webform"
 )
 
@@ -33,22 +38,51 @@ func ParseFormTemplate() (*template.Template, error) {
 // formPageData is the view model passed to the "form" template.
 type formPageData struct {
 	webform.FormData
-	ErrorMessage string
+	ErrorMessage   string
+	SuccessMessage string
+	LiveReload     bool
 }
 
-// NewHandler returns an http.Handler that serves three endpoints:
-//   - GET  /                  — renders the HTML form populated from the JSON config file.
-//   - GET  /static/style.css  — serves the embedded CSS stylesheet.
-//   - POST /submit            — validates submitted values against the CUE schema,
-//     writes valid JSON to configPath, and redirects to /.
-//
-// If configPath does not exist, the form is rendered with schema defaults only.
-// If CUE validation fails on submit, the form is re-rendered with an error banner.
-func NewHandler(formData webform.FormData, cueSchema cue.Value, configPath string) (http.Handler, error) {
+// options holds optional configuration for NewHandler.
+type options struct {
+	watcher *watcher.SchemaWatcher
+}
+
+// Option configures NewHandler behaviour.
+type Option func(*options)
+
+// WithWatcher enables live reload: when the schema file changes, the handler
+// uses the updated form data/schema and signals connected browsers via SSE.
+func WithWatcher(w *watcher.SchemaWatcher) Option {
+	return func(o *options) { o.watcher = w }
+}
+
+// NewHandler returns an http.Handler that serves the web UI endpoints.
+// If a non-nil SchemaWatcher is provided, the handler dynamically reads the
+// latest form data and schema from it, and exposes a /events SSE endpoint
+// that signals browsers to reload when the schema file changes.
+func NewHandler(formData webform.FormData, cueSchema cue.Value, configPath string, opts ...Option) (http.Handler, error) {
+	cfg := options{}
+	for _, o := range opts {
+		o(&cfg)
+	}
 	mux := http.NewServeMux()
 	tmpl, err := ParseFormTemplate()
 	if err != nil {
 		return nil, fmt.Errorf("parsing form template: %w", err)
+	}
+
+	getFormData := func() webform.FormData {
+		if cfg.watcher != nil {
+			return cfg.watcher.FormData()
+		}
+		return formData
+	}
+	getSchema := func() cue.Value {
+		if cfg.watcher != nil {
+			return cfg.watcher.Schema()
+		}
+		return cueSchema
 	}
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -57,15 +91,23 @@ func NewHandler(formData webform.FormData, cueSchema cue.Value, configPath strin
 			return
 		}
 
-		populated := formData
+		currentFormData := getFormData()
+		populated := currentFormData
 		if flat, err := config.Load(configPath); err != nil {
 			log.Printf("Warning: failed to parse config file %s: %v", configPath, err)
 		} else if flat != nil {
-			populated = applyStoredValues(formData, flat)
+			populated = applyStoredValues(currentFormData, flat)
+		}
+
+		var successMsg string
+		if savedAt := r.URL.Query().Get("saved"); savedAt != "" {
+			if t, err := time.Parse(time.RFC3339, savedAt); err == nil {
+				successMsg = fmt.Sprintf("Configuration saved to %s at %s", configPath, t.Format("15:04:05"))
+			}
 		}
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if err := tmpl.ExecuteTemplate(w, "form", formPageData{FormData: populated}); err != nil {
+		if err := tmpl.ExecuteTemplate(w, "form", formPageData{FormData: populated, SuccessMessage: successMsg, LiveReload: cfg.watcher != nil}); err != nil {
 			http.Error(w, "Template error", http.StatusInternalServerError)
 		}
 	})
@@ -73,6 +115,21 @@ func NewHandler(formData webform.FormData, cueSchema cue.Value, configPath strin
 	mux.HandleFunc("/static/style.css", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/css; charset=utf-8")
 		fmt.Fprint(w, cssFile)
+	})
+
+	mux.HandleFunc("/schema.json", func(w http.ResponseWriter, r *http.Request) {
+		expr, err := jsonschema.Generate(schema.RootValue(getSchema()), nil)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("generating JSON Schema: %v", err), http.StatusInternalServerError)
+			return
+		}
+		jsonBytes, err := getSchema().Context().BuildExpr(expr).MarshalJSON()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("marshalling JSON Schema: %v", err), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Write(jsonBytes)
 	})
 
 	mux.HandleFunc("/submit", func(w http.ResponseWriter, r *http.Request) {
@@ -91,29 +148,63 @@ func NewHandler(formData webform.FormData, cueSchema cue.Value, configPath strin
 			existing = map[string]string{}
 		}
 
-		updatedValues := mergeSubmittedValues(formData, existing, r.PostForm)
+		currentFormData := getFormData()
+		updatedValues := mergeSubmittedValues(currentFormData, existing, r.PostForm)
 
 		// Convert to nested JSON
-		jsonBytes, err := config.ToJSON(updatedValues, CollectFieldTypes(formData))
+		jsonBytes, err := config.ToJSON(updatedValues, CollectFieldTypes(currentFormData))
 		if err != nil {
-			renderFormWithError(w, tmpl, formData, updatedValues, fmt.Sprintf("Failed to build JSON: %v", err))
+			log.Printf("Failed to build JSON: %v", err)
+			renderFormWithError(w, tmpl, currentFormData, updatedValues, fmt.Sprintf("Failed to build JSON: %v", err))
 			return
 		}
 
-		// Validate against CUE schema
-		if err := config.Validate(jsonBytes, cueSchema); err != nil {
-			renderFormWithError(w, tmpl, formData, updatedValues, fmt.Sprintf("Validation error: %v", err))
+		// Validate against CUE schema — use the root definition value so that
+		// definition-based schemas (#Configuration etc.) are validated correctly.
+		if err := config.Validate(jsonBytes, schema.RootValue(getSchema())); err != nil {
+			log.Printf("Validation error: %v", err)
+			renderFormWithError(w, tmpl, currentFormData, updatedValues, fmt.Sprintf("Validation error: %v", err))
 			return
 		}
 
 		// Write validated JSON to config file
 		if err := os.WriteFile(configPath, jsonBytes, 0644); err != nil {
-			renderFormWithError(w, tmpl, formData, updatedValues, fmt.Sprintf("Failed to save config: %v", err))
+			log.Printf("Failed to save config: %v", err)
+			renderFormWithError(w, tmpl, currentFormData, updatedValues, fmt.Sprintf("Failed to save config: %v", err))
 			return
 		}
 
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		savedAt := url.QueryEscape(time.Now().Format(time.RFC3339))
+		http.Redirect(w, r, "/?saved="+savedAt, http.StatusSeeOther)
 	})
+
+	if cfg.watcher != nil {
+		mux.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
+			flusher, ok := w.(http.Flusher)
+			if !ok {
+				http.Error(w, "streaming not supported", http.StatusInternalServerError)
+				return
+			}
+
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Header().Set("Cache-Control", "no-cache")
+			w.Header().Set("Connection", "keep-alive")
+			flusher.Flush()
+
+			ch := cfg.watcher.Subscribe()
+			defer cfg.watcher.Unsubscribe(ch)
+
+			for {
+				select {
+				case <-r.Context().Done():
+					return
+				case <-ch:
+					fmt.Fprintf(w, "event: reload\ndata: schema changed\n\n")
+					flusher.Flush()
+				}
+			}
+		})
+	}
 
 	return mux, nil
 }

@@ -8,10 +8,25 @@ The module root is library-focused. Example CUE schemas live under `examples/` a
 
 - **Schema-driven forms** — CUE definitions are introspected at startup; fields, types, and constraints become form inputs automatically.
 - **Native CUE validation** — Disjunctions (`"a" | "b"`) render as `<select>` dropdowns, bound constraints (`>=1 & <=65535`) become HTML `min`/`max` attributes, and `=~` regex constraints become `pattern` attributes.
+- **JSON Schema export** — A `/schema.json` endpoint exposes the loaded CUE schema as JSON Schema (Draft 2020-12), generated natively by the CUE toolchain.
 - **UI hints via doc comments** — Control labels, help text, widget types, layout, visibility, ordering, and more with `// UI_*` directives.
 - **Nested sections and tabs** — Struct fields become recursive sections, and deeply nested groups can switch to CSS-only tabs.
 - **Default values** — CUE defaults (`*"value"`) pre-populate form fields.
 - **No JavaScript required** — Pure server-rendered HTML with embedded CSS.
+
+## Download
+
+Pre-built binaries for Linux, macOS, and Windows are published with every [GitHub release](../../releases/latest):
+
+| Platform     | Architecture | File                              |
+| ------------ | ------------ | --------------------------------- |
+| Linux        | x86-64       | `cue-webui-linux-amd64`           |
+| Linux        | ARM64        | `cue-webui-linux-arm64`           |
+| macOS        | x86-64       | `cue-webui-darwin-amd64`          |
+| macOS (M1+)  | ARM64        | `cue-webui-darwin-arm64`          |
+| Windows      | x86-64       | `cue-webui-windows-amd64.exe`     |
+
+Download the binary for your platform, make it executable (Linux/macOS: `chmod +x`), and run it directly — no Go toolchain required.
 
 ## Quick Start
 
@@ -29,15 +44,15 @@ go run ./cmd -addr 0.0.0.0:9090 myschema.cue config.json
 
 Open [http://localhost:8080](http://localhost:8080) to see the generated form.
 
-Try the bundled example schemas:
+### Live Reload
+
+Pass the `-live` flag to enable live reload. The server watches the schema and config files for changes and automatically refreshes the browser via a server-sent events (SSE) endpoint:
 
 ```bash
-go run ./cmd examples/basic/schema.cue examples/basic/config.json
-go run ./cmd examples/nested-tabs/schema.cue examples/nested-tabs/config.json
-go run ./cmd examples/platform-stack/schema.cue examples/platform-stack/config.json
+go run ./cmd -live myschema.cue config.json
 ```
 
-See [examples/README.md](examples/README.md) for the catalog.
+When live reload is active, a small EventSource script is injected into the page. No external tooling or browser extension is needed.
 
 ## Library Usage
 
@@ -46,6 +61,15 @@ If you want to embed your own schema in an application, the flow is:
 1. Compile the CUE schema with `cuecontext.New().CompileString(...)`.
 2. Convert it to `webform.FormData` with `webform.BuildFormData(...)`.
 3. Serve the generated handler from `webui.NewHandler(formData, cueSchema, configPath)`.
+
+The handler exposes the following HTTP endpoints:
+
+| Endpoint            | Method | Description                                                   |
+| ------------------- | ------ | ------------------------------------------------------------- |
+| `/`                 | GET    | HTML form pre-populated with values from `configPath`         |
+| `/static/style.css` | GET    | Embedded CSS stylesheet                                       |
+| `/schema.json`      | GET    | JSON Schema (Draft 2020-12) generated from the CUE schema     |
+| `/submit`           | POST   | Validates form values, writes JSON to `configPath`, redirects |
 
 ## Schema Example
 
@@ -134,7 +158,7 @@ internal/
   config/
     config.go                # Load/save flat key-value maps to/from JSON; CUE validation
   webui/
-    server.go                # HTTP handler (form page, CSS, submit endpoint)
+    server.go                # HTTP handler (form page, CSS, schema.json, submit endpoint)
     values.go                # Stored value hydration and submission merging helpers
     templates/
       form.html              # Go HTML template (form + result views)
@@ -147,11 +171,15 @@ internal/
 
 ## Examples
 
-`examples/basic/schema.cue` is the original simple demo. Run it with `go run ./cmd examples/basic/schema.cue config.json`.
+```bash
+go run ./cmd examples/basic/schema.cue examples/basic/config.json
+go run ./cmd examples/nested-tabs/schema.cue examples/nested-tabs/config.json
+go run ./cmd examples/platform-stack/schema.cue examples/platform-stack/config.json
+```
 
-`examples/nested-tabs/schema.cue` shows deeply nested configuration with repeated `UI_Navigation: tabs` hints.
-
-`examples/platform-stack/schema.cue` shows a larger operations-style schema with regex validation, defaults, readonly fields, hidden fields, radios, textarea overrides, and multi-column sections.
+- **basic** — original simple demo.
+- **nested-tabs** — deeply nested configuration with repeated `UI_Navigation: tabs` hints.
+- **platform-stack** — larger operations-style schema with regex validation, defaults, readonly fields, hidden fields, radios, textarea overrides, and multi-column sections.
 
 ## Running Tests
 

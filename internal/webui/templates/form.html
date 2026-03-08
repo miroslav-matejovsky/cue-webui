@@ -11,6 +11,7 @@
 
 <body>
   <div class="container">
+    {{if .SuccessMessage}}<div class="success-banner">{{.SuccessMessage}}</div>{{end}}
     {{if .ErrorMessage}}<div class="error-banner">{{.ErrorMessage}}</div>{{end}}
     <h1>{{.Title}}</h1>
     <form method="POST" action="/submit">
@@ -21,6 +22,16 @@
       </div>
     </form>
   </div>
+  {{if .LiveReload}}
+  <script>
+    (function () {
+      var es = new EventSource("/events");
+      es.addEventListener("reload", function () {
+        window.location.reload();
+      });
+    })();
+  </script>
+  {{end}}
 </body>
 
 </html>

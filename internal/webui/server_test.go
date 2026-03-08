@@ -13,6 +13,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+	"github.com/miroslav-matejovsky/cue-webui/internal/watcher"
 	"github.com/miroslav-matejovsky/cue-webui/internal/webui/webform"
 	"github.com/stretchr/testify/require"
 )
@@ -43,6 +44,13 @@ func sampleCUESchema() cue.Value {
 	return ctx.CompileString(`{ server: { host: string, port: int & >=1 & <=65535 } }`)
 }
 
+// definitionCUESchema returns a CUE schema that uses definitions, as real schemas loaded
+// from .cue files do. The root definition is #Configuration which references #Connection.
+func definitionCUESchema() cue.Value {
+	ctx := cuecontext.New()
+	return ctx.CompileString("#Connection: { host: string, port: int & >=1 & <=65535 }\n#Configuration: { connection: #Connection }\n")
+}
+
 // permissiveCUESchema returns a CUE value that accepts any structure (for tests that don't need validation).
 func permissiveCUESchema() cue.Value {
 	ctx := cuecontext.New()
@@ -66,9 +74,9 @@ func sampleFormData() webform.FormData {
 	}
 }
 
-func mustNewHandler(t *testing.T, fd webform.FormData, schema cue.Value, configPath string) http.Handler {
+func mustNewHandler(t *testing.T, fd webform.FormData, schema cue.Value, configPath string, opts ...Option) http.Handler {
 	t.Helper()
-	h, err := NewHandler(fd, schema, configPath)
+	h, err := NewHandler(fd, schema, configPath, opts...)
 	require.NoError(t, err)
 	return h
 }
@@ -125,7 +133,7 @@ func TestNewHandler_SubmitPost(t *testing.T) {
 	handler.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusSeeOther, rec.Code)
-	require.Equal(t, "/", rec.Header().Get("Location"))
+	require.True(t, strings.HasPrefix(rec.Header().Get("Location"), "/?saved="), "expected redirect to /?saved=..., got %s", rec.Header().Get("Location"))
 
 	// Verify JSON file was written
 	data, err := os.ReadFile(configPath)
@@ -431,4 +439,197 @@ func TestNewHandler_NoConfigFileRendersDefaults(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Body.String(), `value="default-host"`, "response missing default value")
+}
+
+func TestNewHandler_SchemaJSON_ContentType(t *testing.T) {
+	handler := mustNewHandler(t, sampleFormData(), sampleCUESchema(), tempConfigPath(t))
+	req := httptest.NewRequest(http.MethodGet, "/schema.json", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.True(t, strings.HasPrefix(rec.Header().Get("Content-Type"), "application/json"), "Content-Type should be application/json")
+}
+
+func TestNewHandler_SchemaJSON_ValidJSON(t *testing.T) {
+	handler := mustNewHandler(t, sampleFormData(), sampleCUESchema(), tempConfigPath(t))
+	req := httptest.NewRequest(http.MethodGet, "/schema.json", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &result), "response body must be valid JSON")
+}
+
+func TestNewHandler_SchemaJSON_PlainStruct_ContainsFields(t *testing.T) {
+	handler := mustNewHandler(t, sampleFormData(), sampleCUESchema(), tempConfigPath(t))
+	req := httptest.NewRequest(http.MethodGet, "/schema.json", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &result))
+
+	// The schema should describe a "server" object with "host" and "port" properties.
+	props, ok := result["properties"].(map[string]any)
+	require.True(t, ok, "JSON Schema missing top-level 'properties'")
+	serverSchema, ok := props["server"].(map[string]any)
+	require.True(t, ok, "JSON Schema missing 'server' property")
+	serverProps, ok := serverSchema["properties"].(map[string]any)
+	require.True(t, ok, "JSON Schema 'server' missing 'properties'")
+	require.Contains(t, serverProps, "host", "server properties missing 'host'")
+	require.Contains(t, serverProps, "port", "server properties missing 'port'")
+}
+
+func TestNewHandler_SchemaJSON_DefinitionSchema_NotEmpty(t *testing.T) {
+	// Real-world schemas compiled from .cue files use definitions (#Name).
+	// The /schema.json endpoint must produce a non-trivial schema for them,
+	// not just {"$schema":...,"type":"object"}.
+	handler := mustNewHandler(t, sampleFormData(), definitionCUESchema(), tempConfigPath(t))
+	req := httptest.NewRequest(http.MethodGet, "/schema.json", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &result))
+
+	// A schema generated from a CUE definition should have 'properties',
+	// confirming that the root definition (#Configuration) was used as input.
+	require.Contains(t, result, "properties", "JSON Schema from definition schema must have 'properties' (not just empty type:object)")
+	props := result["properties"].(map[string]any)
+	require.Contains(t, props, "connection", "JSON Schema must expose the 'connection' field from #Configuration")
+}
+
+func TestNewHandler_SubmitValidationError_DefinitionSchema(t *testing.T) {
+	// Real-world schemas use CUE definitions (#Name). The submit handler must validate
+	// the submitted JSON against the root definition value, not the raw schema with definitions.
+	ctx := cuecontext.New()
+	defSchema := ctx.CompileString(`
+		#Server: { host: string, port: int & >=1 & <=65535 }
+		#Configuration: { server: #Server }
+	`)
+	fd := webform.FormData{
+		Title: "Def Validation Test",
+		Sections: []webform.Section{{
+			Name: "server", Label: "Server", Columns: 2,
+			Fields: []webform.Field{
+				{Name: "host", Path: "server.host", Type: "string", Label: "Host", Widget: "input", InputType: "text"},
+				{Name: "port", Path: "server.port", Type: "int", Label: "Port", Widget: "input", InputType: "number", Min: "1", Max: "65535"},
+			},
+		}},
+	}
+	handler := mustNewHandler(t, fd, defSchema, tempConfigPath(t))
+
+	form := url.Values{}
+	form.Set("server.host", "localhost")
+	form.Set("server.port", "99999") // exceeds <=65535
+
+	req := httptest.NewRequest(http.MethodPost, "/submit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+	body := rec.Body.String()
+	require.Contains(t, body, "error-banner", "response missing error banner for definition-based schema validation")
+	require.Contains(t, body, "Validation error", "response missing validation error message for definition-based schema")
+}
+
+func TestNewHandler_SchemaJSON_DefinitionSchema_ContainsDefs(t *testing.T) {
+	// When the root definition references other definitions they must appear in $defs.
+	handler := mustNewHandler(t, sampleFormData(), definitionCUESchema(), tempConfigPath(t))
+	req := httptest.NewRequest(http.MethodGet, "/schema.json", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &result))
+
+	defs, ok := result["$defs"].(map[string]any)
+	require.True(t, ok, "JSON Schema must contain '$defs' for referenced definitions")
+	// #Connection is referenced by #Configuration so it must appear in $defs.
+	var found bool
+	for key := range defs {
+		if strings.Contains(key, "Connection") {
+			found = true
+			break
+		}
+	}
+	require.True(t, found, "$defs must contain a 'Connection' entry for the nested definition")
+}
+
+func TestNewHandler_LiveReload_InjectsScript(t *testing.T) {
+	fd := sampleFormData()
+	schema := sampleCUESchema()
+
+	dir := t.TempDir()
+	schemaPath := filepath.Join(dir, "schema.cue")
+	require.NoError(t, os.WriteFile(schemaPath, []byte(`{ server: { host: string, port: int & >=1 & <=65535 } }`), 0644))
+
+	w, err := watcher.New(schemaPath, fd, schema)
+	require.NoError(t, err)
+	defer w.Close()
+
+	handler := mustNewHandler(t, fd, schema, tempConfigPath(t), WithWatcher(w))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	require.Contains(t, body, "EventSource", "live reload should inject EventSource script")
+	require.Contains(t, body, "/events", "live reload script should connect to /events")
+}
+
+func TestNewHandler_NoLiveReload_NoScript(t *testing.T) {
+	handler := mustNewHandler(t, sampleFormData(), sampleCUESchema(), tempConfigPath(t))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.NotContains(t, rec.Body.String(), "EventSource", "without live reload, no EventSource script should be present")
+}
+
+func TestNewHandler_EventsEndpoint_SSE(t *testing.T) {
+	fd := sampleFormData()
+	schema := sampleCUESchema()
+
+	dir := t.TempDir()
+	schemaPath := filepath.Join(dir, "schema.cue")
+	require.NoError(t, os.WriteFile(schemaPath, []byte(`{ server: { host: string, port: int & >=1 & <=65535 } }`), 0644))
+
+	w, err := watcher.New(schemaPath, fd, schema)
+	require.NoError(t, err)
+	defer w.Close()
+
+	handler := mustNewHandler(t, fd, schema, tempConfigPath(t), WithWatcher(w))
+
+	// Start server
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	// Connect to SSE endpoint
+	resp, err := http.Get(srv.URL + "/events")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
+}
+
+func TestNewHandler_NoEvents_WithoutWatcher(t *testing.T) {
+	handler := mustNewHandler(t, sampleFormData(), sampleCUESchema(), tempConfigPath(t))
+
+	req := httptest.NewRequest(http.MethodGet, "/events", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	// Without watcher, /events is not registered, so "/" handler catches it as 404
+	require.Equal(t, http.StatusNotFound, rec.Code)
 }
