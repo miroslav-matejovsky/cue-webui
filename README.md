@@ -15,17 +15,24 @@ The module root is now library-focused. Runnable demos live under `examples/`.
 
 ## Quick Start
 
-Run one of the embedded examples:
+Point the `cmd` binary at any CUE schema file to get an instant web form:
 
 ```bash
-go run ./examples/basic
+go run ./cmd <schema.cue>
+```
+
+An optional `-addr` flag sets the listen address (default `localhost:8080`):
+
+```bash
+go run ./cmd -addr 0.0.0.0:9090 myschema.cue
 ```
 
 Open [http://localhost:8080](http://localhost:8080) to see the generated form.
 
-More examples are available:
+Alternatively, run one of the embedded examples:
 
 ```bash
+go run ./examples/basic
 go run ./examples/nested-tabs
 go run ./examples/platform-stack
 ```
@@ -116,6 +123,8 @@ Use `UI_Navigation: tabs` on any struct or definition that contains sub-sections
 ## Project Structure
 
 ```text
+cmd/
+  main.go            # Standalone binary: serve a form for any CUE schema file
 examples/            # Runnable demo applications with embedded schemas
   basic/             # Original starter example
   nested-tabs/       # Deeply nested tabbed configuration example
