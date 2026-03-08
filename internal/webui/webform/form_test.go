@@ -257,13 +257,14 @@ func TestBuildFormData_SingleRoot(t *testing.T) {
 	require.Equal(t, "db", fd.Sections[0].Name)
 }
 
-func TestBuildFormData_MultipleRoots(t *testing.T) {
+func TestBuildFormData_MultipleRoots_WithUIRoot(t *testing.T) {
 	src := `
 #Server: {
 	conn: {
 		host: string
 	}
 }
+// UI_Root: true
 #Client: {
 	api: {
 		url: string
@@ -277,8 +278,9 @@ func TestBuildFormData_MultipleRoots(t *testing.T) {
 	fd, err := BuildFormData(val)
 	require.NoError(t, err)
 
-	require.Equal(t, "Configuration", fd.Title)
-	require.Len(t, fd.Sections, 2)
+	require.Equal(t, "Client", fd.Title)
+	require.Len(t, fd.Sections, 1)
+	require.Equal(t, "api", fd.Sections[0].Name)
 }
 
 func TestBuildFormData_SingleRootWithScalars(t *testing.T) {
@@ -331,6 +333,155 @@ func TestBuildFormData_NoDefs(t *testing.T) {
 	val := ctx.CompileString(`42`)
 	_, err := BuildFormData(val)
 	require.Error(t, err, "BuildFormData should return error when no definitions found")
+}
+
+func TestBuildFormData_UIRootHint(t *testing.T) {
+	// #Connection has struct sub-fields AND is referenced by #Config.
+	// Without UI_Root, both would be treated as roots → #Connection rendered twice.
+	// The UI_Root: true hint on #Config tells BuildFormData to use it as the sole root.
+	src := `
+#Connection: {
+	database: {
+		host: string
+		port: int
+	}
+}
+// UI_Root: true
+#Config: {
+	conn: #Connection
+}
+`
+	ctx := cuecontext.New()
+	val := ctx.CompileString(src)
+	require.NoError(t, val.Err())
+
+	fd, err := BuildFormData(val)
+	require.NoError(t, err)
+
+	// Only #Config should be the root; #Connection should NOT appear as a top-level section.
+	require.Equal(t, "Config", fd.Title)
+	require.Len(t, fd.Sections, 1, "only 'conn' subsection should appear")
+	require.Equal(t, "conn", fd.Sections[0].Name)
+}
+
+func TestBuildFormData_NoUIRoot_AutoDetects(t *testing.T) {
+	// Without UI_Root hint, auto-detection should apply (same as before).
+	src := `
+// UI_Label: My App
+#Config: {
+	db: {
+		host: string
+	}
+}
+`
+	ctx := cuecontext.New()
+	val := ctx.CompileString(src)
+	require.NoError(t, val.Err())
+
+	fd, err := BuildFormData(val)
+	require.NoError(t, err)
+	require.Equal(t, "My App", fd.Title)
+	require.Len(t, fd.Sections, 1)
+}
+
+func TestBuildFormData_MultipleUIRoots_Error(t *testing.T) {
+	src := `
+// UI_Root: true
+#A: {
+	sub: {
+		x: int
+	}
+}
+// UI_Root: true
+#B: {
+	sub: {
+		y: string
+	}
+}
+`
+	ctx := cuecontext.New()
+	val := ctx.CompileString(src)
+	require.NoError(t, val.Err())
+
+	_, err := BuildFormData(val)
+	require.Error(t, err, "should error when multiple definitions have UI_Root: true")
+	require.Contains(t, err.Error(), "multiple definitions marked with UI_Root")
+}
+
+func TestBuildFormData_MultipleRoots_NoUIRoot_Error(t *testing.T) {
+	src := `
+#Server: {
+	conn: {
+		host: string
+	}
+}
+#Client: {
+	api: {
+		url: string
+	}
+}
+`
+	ctx := cuecontext.New()
+	val := ctx.CompileString(src)
+	require.NoError(t, val.Err())
+
+	_, err := BuildFormData(val)
+	require.Error(t, err, "should error when multiple roots exist without UI_Root hint")
+	require.Contains(t, err.Error(), "UI_Root")
+}
+
+func TestFindRootDef_MultipleUIRoots_Error(t *testing.T) {
+	src := `
+// UI_Root: true
+#A: {
+	x: string
+}
+// UI_Root: true
+#B: {
+	y: string
+}
+`
+	ctx := cuecontext.New()
+	val := ctx.CompileString(src)
+	require.NoError(t, val.Err())
+
+	_, err := FindRootDef(val)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "multiple definitions marked with UI_Root")
+}
+
+func TestFindRootDef_SingleUIRoot_OK(t *testing.T) {
+	src := `
+#A: {
+	x: string
+}
+// UI_Root: true
+#B: {
+	y: string
+}
+`
+	ctx := cuecontext.New()
+	val := ctx.CompileString(src)
+	require.NoError(t, val.Err())
+
+	name, err := FindRootDef(val)
+	require.NoError(t, err)
+	require.Equal(t, "B", name)
+}
+
+func TestFindRootDef_NoUIRoot_OK(t *testing.T) {
+	src := `
+#A: {
+	x: string
+}
+`
+	ctx := cuecontext.New()
+	val := ctx.CompileString(src)
+	require.NoError(t, val.Err())
+
+	name, err := FindRootDef(val)
+	require.NoError(t, err)
+	require.Equal(t, "", name)
 }
 
 // findField returns a pointer to the Field with the given name, or nil.

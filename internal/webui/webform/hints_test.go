@@ -19,6 +19,7 @@ func TestParseUIHints_AllDirectives(t *testing.T) {
 // UI_Columns: 4
 // UI_Colspan: 2
 // UI_Navigation: tabs
+// UI_Root: true
 field: string
 `
 	ctx := cuecontext.New()
@@ -32,6 +33,7 @@ field: string
 	require.Equal(t, "textarea", h.Widget)
 	require.True(t, h.Hidden)
 	require.True(t, h.Readonly)
+	require.True(t, h.Root)
 	require.Equal(t, 3, h.Order)
 	require.Equal(t, 4, h.Columns)
 	require.Equal(t, 2, h.Colspan)
@@ -53,6 +55,7 @@ field: string
 	require.Equal(t, 999, h.Order)
 	require.False(t, h.Hidden)
 	require.False(t, h.Readonly)
+	require.False(t, h.Root)
 	require.Empty(t, h.Navigation)
 }
 

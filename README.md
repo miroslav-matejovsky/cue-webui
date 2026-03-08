@@ -132,8 +132,29 @@ Place `// UI_Key: value` directives in CUE doc comments to customize form render
 | `UI_Columns`    | Grid columns for a section (default: 2)                              |
 | `UI_Colspan`    | Number of grid columns a field spans                                 |
 | `UI_Navigation` | Child section layout mode. Set to `tabs` for CSS-only tab navigation |
+| `UI_Root`       | Mark a definition as the root entry point (`true`/`false`)           |
 
 Use `UI_Navigation: tabs` on any struct or definition that contains sub-sections when you want deeper configuration trees to render as tabs instead of a long stack of nested fieldsets.
+
+### `UI_Root` — Disambiguating Multiple Definitions
+
+When a CUE schema has multiple definitions that contain struct sub-fields, the tool cannot automatically determine which one is the root entry point. In this case, you **must** annotate exactly one definition with `// UI_Root: true`:
+
+```cue
+#Connection: {
+  host: string
+  port: int
+}
+
+// UI_Root: true
+#Config: {
+  conn: #Connection
+}
+```
+
+Without `UI_Root`, a schema with a single root definition works automatically. The hint is only required when ambiguity exists (multiple definitions with struct sub-fields). Marking more than one definition with `UI_Root: true` is an error.
+
+### `UI_Navigation` — Tabbed Sections
 
 ```cue
 #TLS: {
