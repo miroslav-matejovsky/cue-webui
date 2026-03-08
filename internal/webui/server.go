@@ -114,18 +114,22 @@ func NewHandler(formData webform.FormData, cueSchema cue.Value, configPath strin
 		// Convert to nested JSON
 		jsonBytes, err := config.ToJSON(updatedValues, CollectFieldTypes(formData))
 		if err != nil {
+			log.Printf("Failed to build JSON: %v", err)
 			renderFormWithError(w, tmpl, formData, updatedValues, fmt.Sprintf("Failed to build JSON: %v", err))
 			return
 		}
 
-		// Validate against CUE schema
-		if err := config.Validate(jsonBytes, cueSchema); err != nil {
+		// Validate against CUE schema — use the root definition value so that
+		// definition-based schemas (#Configuration etc.) are validated correctly.
+		if err := config.Validate(jsonBytes, schema.RootValue(cueSchema)); err != nil {
+			log.Printf("Validation error: %v", err)
 			renderFormWithError(w, tmpl, formData, updatedValues, fmt.Sprintf("Validation error: %v", err))
 			return
 		}
 
 		// Write validated JSON to config file
 		if err := os.WriteFile(configPath, jsonBytes, 0644); err != nil {
+			log.Printf("Failed to save config: %v", err)
 			renderFormWithError(w, tmpl, formData, updatedValues, fmt.Sprintf("Failed to save config: %v", err))
 			return
 		}

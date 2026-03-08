@@ -502,6 +502,41 @@ func TestNewHandler_SchemaJSON_DefinitionSchema_NotEmpty(t *testing.T) {
 	require.Contains(t, props, "connection", "JSON Schema must expose the 'connection' field from #Configuration")
 }
 
+func TestNewHandler_SubmitValidationError_DefinitionSchema(t *testing.T) {
+	// Real-world schemas use CUE definitions (#Name). The submit handler must validate
+	// the submitted JSON against the root definition value, not the raw schema with definitions.
+	ctx := cuecontext.New()
+	defSchema := ctx.CompileString(`
+		#Server: { host: string, port: int & >=1 & <=65535 }
+		#Configuration: { server: #Server }
+	`)
+	fd := webform.FormData{
+		Title: "Def Validation Test",
+		Sections: []webform.Section{{
+			Name: "server", Label: "Server", Columns: 2,
+			Fields: []webform.Field{
+				{Name: "host", Path: "server.host", Type: "string", Label: "Host", Widget: "input", InputType: "text"},
+				{Name: "port", Path: "server.port", Type: "int", Label: "Port", Widget: "input", InputType: "number", Min: "1", Max: "65535"},
+			},
+		}},
+	}
+	handler := mustNewHandler(t, fd, defSchema, tempConfigPath(t))
+
+	form := url.Values{}
+	form.Set("server.host", "localhost")
+	form.Set("server.port", "99999") // exceeds <=65535
+
+	req := httptest.NewRequest(http.MethodPost, "/submit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+	body := rec.Body.String()
+	require.Contains(t, body, "error-banner", "response missing error banner for definition-based schema validation")
+	require.Contains(t, body, "Validation error", "response missing validation error message for definition-based schema")
+}
+
 func TestNewHandler_SchemaJSON_DefinitionSchema_ContainsDefs(t *testing.T) {
 	// When the root definition references other definitions they must appear in $defs.
 	handler := mustNewHandler(t, sampleFormData(), definitionCUESchema(), tempConfigPath(t))
