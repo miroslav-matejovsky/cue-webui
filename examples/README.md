@@ -1,14 +1,18 @@
 # Examples
 
-Each example is a standalone Go package with an embedded CUE schema. Run any example from the repository root:
+Each example is a CUE schema file. Run any of them by passing the path to `cmd`:
 
 ```bash
-go run ./examples/basic
-go run ./examples/nested-tabs
-go run ./examples/platform-stack
+go run ./cmd examples/basic/schema.cue
+go run ./cmd examples/nested-tabs/schema.cue
+go run ./cmd examples/platform-stack/schema.cue
 ```
 
-All examples start a server on `http://localhost:8080`.
+All examples start a server on `http://localhost:8080`. Use `-addr` to change the address:
+
+```bash
+go run ./cmd -addr 0.0.0.0:9090 examples/basic/schema.cue
+```
 
 ## Included examples
 

@@ -2,7 +2,7 @@
 
 Automatically generates an HTML form UI from a [CUE](https://cuelang.org/) schema. Define your configuration as CUE definitions with optional UI hints in doc comments, and get a fully functional web form with validation, sections, and multiple widget types.
 
-The module root is now library-focused. Runnable demos live under `examples/`.
+The module root is library-focused. Example CUE schemas live under `examples/` and can be served with `go run ./cmd <schema.cue>`.
 
 ## Features
 
@@ -29,12 +29,12 @@ go run ./cmd -addr 0.0.0.0:9090 myschema.cue
 
 Open [http://localhost:8080](http://localhost:8080) to see the generated form.
 
-Alternatively, run one of the embedded examples:
+Try the bundled example schemas:
 
 ```bash
-go run ./examples/basic
-go run ./examples/nested-tabs
-go run ./examples/platform-stack
+go run ./cmd examples/basic/schema.cue
+go run ./cmd examples/nested-tabs/schema.cue
+go run ./cmd examples/platform-stack/schema.cue
 ```
 
 See [examples/README.md](examples/README.md) for the catalog.
@@ -125,7 +125,7 @@ Use `UI_Navigation: tabs` on any struct or definition that contains sub-sections
 ```text
 cmd/
   main.go            # Standalone binary: serve a form for any CUE schema file
-examples/            # Runnable demo applications with embedded schemas
+examples/            # Example CUE schemas
   basic/             # Original starter example
   nested-tabs/       # Deeply nested tabbed configuration example
   platform-stack/    # Denser real-world deployment schema example
@@ -145,11 +145,11 @@ storage/
 
 ## Examples
 
-`examples/basic` is the original simple demo moved out of the repository root.
+`examples/basic/schema.cue` is the original simple demo. Run it with `go run ./cmd examples/basic/schema.cue`.
 
-`examples/nested-tabs` shows deeply nested configuration with repeated `UI_Navigation: tabs` hints so you can exercise the CSS-only tabbed UI.
+`examples/nested-tabs/schema.cue` shows deeply nested configuration with repeated `UI_Navigation: tabs` hints.
 
-`examples/platform-stack` shows a larger operations-style schema with regex validation, defaults, readonly fields, hidden fields, radios, textarea overrides, and multi-column sections.
+`examples/platform-stack/schema.cue` shows a larger operations-style schema with regex validation, defaults, readonly fields, hidden fields, radios, textarea overrides, and multi-column sections.
 
 ## Running Tests
 
