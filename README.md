@@ -32,9 +32,9 @@ Open [http://localhost:8080](http://localhost:8080) to see the generated form.
 Try the bundled example schemas:
 
 ```bash
-go run ./cmd examples/basic/schema.cue config.json
-go run ./cmd examples/nested-tabs/schema.cue config.json
-go run ./cmd examples/platform-stack/schema.cue config.json
+go run ./cmd examples/basic/schema.cue examples/basic/config.json
+go run ./cmd examples/nested-tabs/schema.cue examples/nested-tabs/config.json
+go run ./cmd examples/platform-stack/schema.cue examples/platform-stack/config.json
 ```
 
 See [examples/README.md](examples/README.md) for the catalog.
