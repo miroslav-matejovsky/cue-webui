@@ -14,6 +14,20 @@ The module root is library-focused. Example CUE schemas live under `examples/` a
 - **Default values** — CUE defaults (`*"value"`) pre-populate form fields.
 - **No JavaScript required** — Pure server-rendered HTML with embedded CSS.
 
+## Download
+
+Pre-built binaries for Linux, macOS, and Windows are published with every [GitHub release](../../releases/latest):
+
+| Platform     | Architecture | File                              |
+| ------------ | ------------ | --------------------------------- |
+| Linux        | x86-64       | `cue-webui-linux-amd64`           |
+| Linux        | ARM64        | `cue-webui-linux-arm64`           |
+| macOS        | x86-64       | `cue-webui-darwin-amd64`          |
+| macOS (M1+)  | ARM64        | `cue-webui-darwin-arm64`          |
+| Windows      | x86-64       | `cue-webui-windows-amd64.exe`     |
+
+Download the binary for your platform, make it executable (Linux/macOS: `chmod +x`), and run it directly — no Go toolchain required.
+
 ## Quick Start
 
 Point the `cmd` binary at any CUE schema file to get an instant web form:
@@ -29,6 +43,16 @@ go run ./cmd -addr 0.0.0.0:9090 myschema.cue config.json
 ```
 
 Open [http://localhost:8080](http://localhost:8080) to see the generated form.
+
+### Live Reload
+
+Pass the `-live` flag to enable live reload. The server watches the schema and config files for changes and automatically refreshes the browser via a server-sent events (SSE) endpoint:
+
+```bash
+go run ./cmd -live myschema.cue config.json
+```
+
+When live reload is active, a small EventSource script is injected into the page. No external tooling or browser extension is needed.
 
 ## Library Usage
 
