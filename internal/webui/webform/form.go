@@ -256,8 +256,8 @@ func ParseSection(name string, val cue.Value, pathPrefix string, sectionHints UI
 // When multiple roots exist, each is rendered as its own section under a
 // generic "Configuration" title. If no definition contains struct sub-fields,
 // all definitions are treated as roots.
-func BuildFormData(rootValue cue.Value) (FormData, error) {
-	if err := rootValue.Err(); err != nil {
+func BuildFormData(cueSchema cue.Value) (FormData, error) {
+	if err := cueSchema.Err(); err != nil {
 		return FormData{}, err
 	}
 
@@ -266,7 +266,7 @@ func BuildFormData(rootValue cue.Value) (FormData, error) {
 		val  cue.Value
 	}
 	var allDefs []defEntry
-	defIter, err := rootValue.Fields(cue.Definitions(true))
+	defIter, err := cueSchema.Fields(cue.Definitions(true))
 	if err != nil {
 		return FormData{}, err
 	}

@@ -27,12 +27,12 @@ func main() {
 	}
 
 	ctx := cuecontext.New()
-	rootValue := ctx.CompileString(string(schemaBytes))
-	if rootValue.Err() != nil {
-		log.Fatalf("Failed to compile CUE schema: %v", rootValue.Err())
+	cueSchema := ctx.CompileString(string(schemaBytes))
+	if cueSchema.Err() != nil {
+		log.Fatalf("Failed to compile CUE schema: %v", cueSchema.Err())
 	}
 
-	formData, err := webform.BuildFormData(rootValue)
+	formData, err := webform.BuildFormData(cueSchema)
 	if err != nil {
 		log.Fatalf("Failed to build form data: %v", err)
 	}
