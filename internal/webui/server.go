@@ -11,6 +11,7 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/encoding/jsonschema"
 	"github.com/miroslav-matejovsky/cue-webui/internal/config"
+	"github.com/miroslav-matejovsky/cue-webui/internal/schema"
 	"github.com/miroslav-matejovsky/cue-webui/internal/webui/webform"
 )
 
@@ -78,7 +79,7 @@ func NewHandler(formData webform.FormData, cueSchema cue.Value, configPath strin
 	})
 
 	mux.HandleFunc("/schema.json", func(w http.ResponseWriter, r *http.Request) {
-		expr, err := jsonschema.Generate(cueSchema, nil)
+		expr, err := jsonschema.Generate(schema.RootValue(cueSchema), nil)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("generating JSON Schema: %v", err), http.StatusInternalServerError)
 			return

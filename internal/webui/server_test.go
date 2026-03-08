@@ -43,6 +43,13 @@ func sampleCUESchema() cue.Value {
 	return ctx.CompileString(`{ server: { host: string, port: int & >=1 & <=65535 } }`)
 }
 
+// definitionCUESchema returns a CUE schema that uses definitions, as real schemas loaded
+// from .cue files do. The root definition is #Configuration which references #Connection.
+func definitionCUESchema() cue.Value {
+	ctx := cuecontext.New()
+	return ctx.CompileString("#Connection: { host: string, port: int & >=1 & <=65535 }\n#Configuration: { connection: #Connection }\n")
+}
+
 // permissiveCUESchema returns a CUE value that accepts any structure (for tests that don't need validation).
 func permissiveCUESchema() cue.Value {
 	ctx := cuecontext.New()
@@ -431,4 +438,90 @@ func TestNewHandler_NoConfigFileRendersDefaults(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Body.String(), `value="default-host"`, "response missing default value")
+}
+
+func TestNewHandler_SchemaJSON_ContentType(t *testing.T) {
+	handler := mustNewHandler(t, sampleFormData(), sampleCUESchema(), tempConfigPath(t))
+	req := httptest.NewRequest(http.MethodGet, "/schema.json", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.True(t, strings.HasPrefix(rec.Header().Get("Content-Type"), "application/json"), "Content-Type should be application/json")
+}
+
+func TestNewHandler_SchemaJSON_ValidJSON(t *testing.T) {
+	handler := mustNewHandler(t, sampleFormData(), sampleCUESchema(), tempConfigPath(t))
+	req := httptest.NewRequest(http.MethodGet, "/schema.json", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &result), "response body must be valid JSON")
+}
+
+func TestNewHandler_SchemaJSON_PlainStruct_ContainsFields(t *testing.T) {
+	handler := mustNewHandler(t, sampleFormData(), sampleCUESchema(), tempConfigPath(t))
+	req := httptest.NewRequest(http.MethodGet, "/schema.json", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &result))
+
+	// The schema should describe a "server" object with "host" and "port" properties.
+	props, ok := result["properties"].(map[string]any)
+	require.True(t, ok, "JSON Schema missing top-level 'properties'")
+	serverSchema, ok := props["server"].(map[string]any)
+	require.True(t, ok, "JSON Schema missing 'server' property")
+	serverProps, ok := serverSchema["properties"].(map[string]any)
+	require.True(t, ok, "JSON Schema 'server' missing 'properties'")
+	require.Contains(t, serverProps, "host", "server properties missing 'host'")
+	require.Contains(t, serverProps, "port", "server properties missing 'port'")
+}
+
+func TestNewHandler_SchemaJSON_DefinitionSchema_NotEmpty(t *testing.T) {
+	// Real-world schemas compiled from .cue files use definitions (#Name).
+	// The /schema.json endpoint must produce a non-trivial schema for them,
+	// not just {"$schema":...,"type":"object"}.
+	handler := mustNewHandler(t, sampleFormData(), definitionCUESchema(), tempConfigPath(t))
+	req := httptest.NewRequest(http.MethodGet, "/schema.json", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &result))
+
+	// A schema generated from a CUE definition should have 'properties',
+	// confirming that the root definition (#Configuration) was used as input.
+	require.Contains(t, result, "properties", "JSON Schema from definition schema must have 'properties' (not just empty type:object)")
+	props := result["properties"].(map[string]any)
+	require.Contains(t, props, "connection", "JSON Schema must expose the 'connection' field from #Configuration")
+}
+
+func TestNewHandler_SchemaJSON_DefinitionSchema_ContainsDefs(t *testing.T) {
+	// When the root definition references other definitions they must appear in $defs.
+	handler := mustNewHandler(t, sampleFormData(), definitionCUESchema(), tempConfigPath(t))
+	req := httptest.NewRequest(http.MethodGet, "/schema.json", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &result))
+
+	defs, ok := result["$defs"].(map[string]any)
+	require.True(t, ok, "JSON Schema must contain '$defs' for referenced definitions")
+	// #Connection is referenced by #Configuration so it must appear in $defs.
+	var found bool
+	for key := range defs {
+		if strings.Contains(key, "Connection") {
+			found = true
+			break
+		}
+	}
+	require.True(t, found, "$defs must contain a 'Connection' entry for the nested definition")
 }
