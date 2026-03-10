@@ -1,6 +1,54 @@
+# Go source files
 *.go    text eol=lf
-*.ps1   text eol=lf
-*.hcl   text eol=lf
+go.mod  text eol=lf
+go.sum  text eol=lf
+
+# Go binaries
+*.exe   binary
+*.dll   binary
+*.so    binary
+*.dylib binary
+
+# Build outputs
+bin/    binary export-ignore
+dist/   binary export-ignore
+build/  binary export-ignore
+*.o     binary
+*.a     binary
+
+# Test and coverage
+*.out   text eol=lf
+*.coverage text eol=lf
+.coverage* text eol=lf
+
+# Configuration files
 *.yaml  text eol=lf
 *.yml   text eol=lf
+*.json  text eol=lf
+*.toml  text eol=lf
+*.hcl   text eol=lf
+.env    text eol=lf
+.env.* text eol=lf
+
+# Documentation
 *.md    text eol=lf
+*.txt   text eol=lf
+
+# Scripts
+*.sh    text eol=lf
+*.ps1   text eol=lf
+Makefile text eol=lf
+
+# IDE and editor files
+.vscode/  export-ignore
+.idea/    export-ignore
+*.swp     export-ignore
+*.swo     export-ignore
+*~        export-ignore
+
+# OS files
+.DS_Store export-ignore
+Thumbs.db export-ignore
+
+# Default behavior
+* text=auto
